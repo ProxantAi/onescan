@@ -1,0 +1,12 @@
+{
+  "name": "proxant-health-videoselfie-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo de videoselfie (rPPG) Proxant · Farmacias Guadalajara",
+  "dependencies": {
+    "serve": "^14.2.4"
+  },
+  "scripts": {
+    "start": "serve -s . --config=./serve.json -l 3100"
+  }
+}

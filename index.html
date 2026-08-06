@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0"
+    />
+    <title>Proxant · Checkup Cardiometabólico</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./assets/css/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- ============ BARRA SUPERIOR ============ -->
+      <header class="appbar">
+        <button class="appbar__icon" aria-label="Menú">
+          <svg viewBox="0 0 24 24" width="22" height="22">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+        <img class="appbar__logo" src="./assets/img/proxant-logo.png" alt="Proxant" />
+        <button class="appbar__icon" aria-label="Ayuda">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+            <path
+              d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <circle cx="12" cy="17" r="1" fill="currentColor" />
+          </svg>
+        </button>
+      </header>
+
+      <main class="app__body">
+        <!-- ============ PANTALLA 1: INICIO ============ -->
+        <section id="screen-landing" class="screen screen--active">
+          <div class="hero">
+            <div class="hero__emblem">
+              <svg viewBox="0 0 24 24" width="40" height="40">
+                <path
+                  d="M12 21s-7-4.35-9.5-8.5C.9 9.6 2.3 6 5.6 6c1.9 0 3.2 1 4.4 2.6C11.2 7 12 6 12 6s.8 1 2 2.6C15.2 7 16.5 6 18.4 6 21.7 6 23.1 9.6 21.5 12.5 19 16.65 12 21 12 21z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <h1>Checkup Cardiometabólico</h1>
+            <p class="hero__sub">Tu salud, tu futuro</p>
+            <p class="hero__lede">
+              Evalúa tu salud cardiometabólica en minutos con un videoselfie y
+              recibe tu plan personalizado.
+            </p>
+
+            <ul class="check-list" id="landing-list"><!-- inyectado por JS --></ul>
+
+            <button id="btn-start" class="btn btn--primary">
+              Iniciar videoselfie
+            </button>
+            <p class="confidential">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2" />
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2" />
+              </svg>
+              Resultados 100% confidenciales
+            </p>
+          </div>
+        </section>
+
+        <!-- ============ PANTALLA 2: VIDEOSELFIE ============ -->
+        <section id="screen-scan" class="screen">
+          <div class="camera" id="camera-frame">
+            <canvas id="mxcanvas"></canvas>
+            <video id="sim-video" playsinline autoplay muted></video>
+            <canvas id="face-mesh" class="face-mesh"></canvas>
+            <div class="camera__oval">
+              <svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid meet">
+                <ellipse cx="150" cy="178" rx="96" ry="126" />
+              </svg>
+            </div>
+            <div class="scanline"></div>
+            <div class="camera__hint">Ajusta tu cara dentro del óvalo</div>
+            <div class="camera__timer">
+              <span class="dot"></span><span id="scan-timer">00:30</span>
+            </div>
+            <div class="camera__signal">
+              <svg viewBox="0 0 24 24" width="15" height="15">
+                <path
+                  d="M2 12h3l2-6 4 12 3-9 2 3h6"
+                  fill="none"
+                  stroke="#34d399"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span id="scan-signal-text">Capturando señal…</span>
+            </div>
+          </div>
+
+          <div class="ppg-strip">
+            <canvas id="ppg-canvas"></canvas>
+            <span class="ppg-strip__label">PPG · señal en tiempo real</span>
+          </div>
+
+          <div class="metrics-card">
+            <div class="metrics-card__head">
+              <h2>Tus métricas</h2>
+              <span class="metrics-card__live" id="metrics-mode">
+                <span class="metrics-card__live-dot"></span>En tiempo real
+              </span>
+            </div>
+            <div class="metrics-grid" id="metrics-grid"><!-- JS --></div>
+
+            <div class="status-card">
+              <div class="status-card__shield">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                  <path
+                    d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M8.5 12l2.5 2.5 4.5-5"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <div class="status-card__text">
+                <span class="status-card__label">Tu estado general</span>
+                <strong id="status-value">Midiendo…</strong>
+                <span class="status-card__hint" id="status-hint">
+                  Mantente quieto unos segundos.
+                </span>
+              </div>
+              <div class="ring" id="score-ring">
+                <svg viewBox="0 0 44 44" width="56" height="56">
+                  <circle cx="22" cy="22" r="19" class="ring__bg" />
+                  <circle cx="22" cy="22" r="19" class="ring__fg" id="ring-fg" />
+                </svg>
+                <div class="ring__num"><strong id="score-num">--</strong><small>/100</small></div>
+              </div>
+            </div>
+
+            <button id="btn-summary" class="btn btn--primary" disabled>
+              Ver resumen completo
+            </button>
+          </div>
+        </section>
+
+        <!-- ============ PANTALLA 3: RESUMEN ============ -->
+        <section id="screen-results" class="screen">
+          <div class="summary">
+            <div class="summary__hero">
+              <div class="ring ring--lg">
+                <svg viewBox="0 0 44 44" width="84" height="84">
+                  <circle cx="22" cy="22" r="19" class="ring__bg" />
+                  <circle cx="22" cy="22" r="19" class="ring__fg" id="ring-fg-2" />
+                </svg>
+                <div class="ring__num">
+                  <strong id="score-num-2">--</strong><small>/100</small>
+                </div>
+              </div>
+              <h2>Tu estado general es <span id="summary-status">Óptimo</span></h2>
+              <p class="hero__lede">
+                Estos son tus signos vitales estimados. Un médico de Proxant los
+                valida y construye tu plan de salud personalizado.
+              </p>
+            </div>
+
+            <ul class="result-list" id="result-list"><!-- JS --></ul>
+
+            <div class="plan-card">
+              <h3>Recibe tu plan de salud personalizado</h3>
+              <p>
+                Continúa por WhatsApp, sin descargar ninguna app. Seguimiento
+                24/7 y recordatorios de tu CareTracker.
+              </p>
+              <button class="btn btn--whatsapp">Continuar por WhatsApp</button>
+              <button id="btn-restart" class="btn btn--ghost">
+                Repetir checkup
+              </button>
+            </div>
+
+            <p class="disclaimer">
+              Demostración. Las estimaciones no sustituyen una valoración médica
+              profesional.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <!-- ============ NAVEGACIÓN INFERIOR ============ -->
+      <nav class="tabbar">
+        <button class="tab is-active" data-tab="landing">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+            <path d="M3 10.5 12 3l9 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M5 9.5V20h14V9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Inicio</span>
+        </button>
+        <button class="tab" data-tab="results">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+            <rect x="5" y="3" width="14" height="18" rx="2" stroke="currentColor" stroke-width="2" />
+            <path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span>Historial</span>
+        </button>
+        <button class="tab tab--cta" data-tab="scan" id="tab-check">
+          <span class="tab__fab">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+              <rect x="3" y="7" width="18" height="13" rx="3" stroke="currentColor" stroke-width="2" />
+              <circle cx="12" cy="13.5" r="3.2" stroke="currentColor" stroke-width="2" />
+              <path d="M9 7l1.5-2h3L15 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span>Nuevo Check</span>
+        </button>
+        <button class="tab" data-tab="results">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+            <path d="M6 3h9l3 3v15H6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Reportes</span>
+        </button>
+        <button class="tab" data-tab="landing">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+            <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="2" />
+            <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span>Perfil</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ============ AVISO DE CONFIGURACIÓN (solo modo real) ============ -->
+    <div id="setup-error" class="setup-error">
+      <div class="setup-error__box">
+        <h2>Falta configuración</h2>
+        <p id="setup-error-text"></p>
+      </div>
+    </div>
+
+    <script type="module" src="./assets/js/app.js"></script>
+  </body>
+</html>
