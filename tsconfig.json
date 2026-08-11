@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "useDefineForClassFields": true,
+
+    /* strict:true a propósito, a diferencia de caredesk-health/proxant-labs, que
+       vienen de Lovable con strictNullChecks:false. Aquí casi todo
+       MeasurementResults es `number | null`; sin strictNullChecks el compilador
+       dejaría pasar justo los bugs que esta capa existe para evitar, y el
+       escenario incomplete-v1 está diseñado para ejercitar esos nulos. */
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+
+    /* sin baseUrl: está deprecado desde TS 5.9 y `paths` relativos ya funcionan solos */
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+}

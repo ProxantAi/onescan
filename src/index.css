@@ -235,12 +235,12 @@ body {
   height: 100%;
   display: none;
 }
-.camera--sim #sim-video {
+.camera--host #sim-video {
   display: block;
   object-fit: cover;
   transform: scaleX(-1);
 }
-.camera--real #mxcanvas {
+.camera--provider #mxcanvas {
   display: block;
 }
 /* óvalo guía para encuadrar la cara */
@@ -429,7 +429,9 @@ body {
 }
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 6 metricas = 3x2. Con 4 columnas quedaba una tarjeta huerfana, y a 440px
+     de ancho tres columnas se leen bastante mejor que cuatro. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .tile {
@@ -739,4 +741,71 @@ body {
   padding: 1px 5px;
   border-radius: 5px;
   font-size: 12.5px;
+}
+
+
+/* ---------- tonos de clasificacion ---------- */
+/* Antes .tag estaba fijado en verde, asi que un resultado hipertenso se veia
+   igual de sano que uno normal. El nivel lo calcula el backend; aqui solo se
+   traduce a color. */
+.tag.tag--good {
+  color: var(--green);
+  background: var(--green-bg);
+}
+.tag.tag--warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+.tag.tag--bad {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.tag.tag--muted {
+  color: var(--muted);
+  background: #eef2f8;
+}
+
+/* ---------- medicion fallida ---------- */
+.status-card--warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+.status-card--warn .status-card__label {
+  color: #b45309;
+}
+
+/* ---------- detalle avanzado del resumen ---------- */
+.summary__advanced {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-top: 12px;
+  box-shadow: var(--shadow);
+}
+.summary__advanced h3 {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 8px;
+}
+.summary__advanced ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.summary__advanced li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+.summary__advanced li:first-child {
+  border-top: 0;
+}
+.summary__advanced li span {
+  color: var(--muted);
 }

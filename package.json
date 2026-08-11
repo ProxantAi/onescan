@@ -3,10 +3,29 @@
   "version": "1.0.0",
   "private": true,
   "description": "Demo de videoselfie (rPPG) Proxant · Farmacias Guadalajara",
-  "dependencies": {
-    "serve": "^14.2.4"
-  },
+  "type": "module",
   "scripts": {
-    "start": "serve -s . --config=./serve.json -l 3100"
+    "dev": "vite",
+    "start": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.58.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@shenai/sdk": "^3.1.9",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.9.0",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.0"
   }
 }
