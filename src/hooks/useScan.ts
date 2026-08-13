@@ -77,6 +77,7 @@ export interface UseScanResult {
   statusHint: string;
   session: ScanSession | null;
   normalized: NormalizedScan | null;
+  planUrl: string | null;
   failureReason: string | null;
   error: string | null;
   isRunning: boolean;
@@ -95,6 +96,7 @@ export function useScan(): UseScanResult {
   const [session, setSession] = useState<ScanSession | null>(null);
   const [normalized, setNormalized] = useState<NormalizedScan | null>(null);
   const [failureReason, setFailureReason] = useState<string | null>(null);
+  const [planUrl, setPlanUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const providerRef = useRef<VitalsProvider | null>(null);
@@ -105,6 +107,7 @@ export function useScan(): UseScanResult {
     setTiles({});
     setNormalized(null);
     setFailureReason(null);
+    setPlanUrl(null);
     setError(null);
     setStatusHint(SIGNAL_HINTS.unknown);
     setPhase('idle');
@@ -180,6 +183,7 @@ export function useScan(): UseScanResult {
         });
 
         setNormalized(submitted.normalized ?? null);
+        setPlanUrl(submitted.plan_url ?? null);
       } catch (caught) {
         const message =
           caught instanceof VitalsSetupError
@@ -212,6 +216,7 @@ export function useScan(): UseScanResult {
     statusHint,
     session,
     normalized,
+    planUrl,
     failureReason,
     error,
     isRunning: phase === 'preparing' || phase === 'positioning' || phase === 'measuring' ||

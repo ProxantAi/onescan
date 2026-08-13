@@ -44,6 +44,7 @@ export interface ScanSession {
   duration_sec: number;
   status: string;
   expires_at: string;
+  linked_to_health_plan?: boolean;
   /** presente sólo en sesiones sintéticas: el payload nativo a reproducir */
   replay?: {
     outcome: 'finished' | 'failed';
@@ -55,7 +56,11 @@ export interface ScanSession {
 export interface SubmitResult {
   scan_id: string;
   measurement_status: 'finished' | 'failed';
-  score: number | null;
+  is_synthetic?: boolean;
+  plan_url?: string | null;
+  plan_message?: string | null;
+  retryable?: boolean;
+  failure_reason?: string | null;
   normalized: NormalizedScan | null;
 }
 
@@ -82,12 +87,24 @@ async function describeError(error: unknown): Promise<string> {
   return error instanceof Error ? error.message : String(error);
 }
 
+export function getLinkToken(): string | null {
+  const token = new URLSearchParams(window.location.search).get('t');
+  return token && token.trim().length > 0 ? token.trim() : null;
+}
+
 export async function openScanSession(): Promise<ScanSession> {
   const supabase = await getClient();
-  const { data, error } = await supabase.functions.invoke<ScanSession & { ok: boolean }>(
-    `${FUNCTION_NAME}/sessions`,
-    { body: { device_id: getDeviceId() } },
-  );
+  const token = getLinkToken();
+
+  const { data, error } = token
+    ? await supabase.functions.invoke<ScanSession & { ok: boolean }>(
+        `${FUNCTION_NAME}/sessions/by-token/${encodeURIComponent(token)}`,
+        { method: 'GET' },
+      )
+    : await supabase.functions.invoke<ScanSession & { ok: boolean }>(
+        `${FUNCTION_NAME}/sessions`,
+        { body: { device_id: getDeviceId() } },
+      );
 
   if (error) throw new Error(await describeError(error));
   if (!data) throw new Error('El backend no devolvió una sesión de escaneo');

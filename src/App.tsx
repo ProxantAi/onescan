@@ -54,6 +54,7 @@ export default function App() {
           normalized={scan.normalized}
           ringOffset={ringOffset}
           isSynthetic={scan.session?.source === 'synthetic'}
+          planUrl={scan.planUrl}
           onRestart={startMeasurement}
           onWhatsapp={handleWhatsapp}
         />

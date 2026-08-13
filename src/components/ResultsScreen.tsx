@@ -13,6 +13,7 @@ interface ResultsScreenProps {
   normalized: NormalizedScan | null;
   ringOffset: number;
   isSynthetic: boolean;
+  planUrl: string | null;
   onRestart: () => void;
   onWhatsapp: () => void;
 }
@@ -28,6 +29,7 @@ export function ResultsScreen({
   normalized,
   ringOffset,
   isSynthetic,
+  planUrl,
   onRestart,
   onWhatsapp,
 }: ResultsScreenProps) {
@@ -112,14 +114,21 @@ export function ResultsScreen({
         )}
 
         <div className="plan-card">
-          <h3>Recibe tu plan de salud personalizado</h3>
+          <h3>{planUrl ? 'Tu plan de salud está listo' : 'Recibe tu plan de salud personalizado'}</h3>
           <p>
-            Continúa por WhatsApp, sin descargar ninguna app. Seguimiento 24/7 y recordatorios de
-            tu CareTracker.
+            {planUrl
+              ? 'Ya incluimos estos resultados en tu plan. También te lo mandamos por WhatsApp.'
+              : 'Continúa por WhatsApp, sin descargar ninguna app. Seguimiento 24/7 y recordatorios de tu CareTracker.'}
           </p>
-          <button type="button" className="btn btn--whatsapp" onClick={onWhatsapp}>
-            Continuar por WhatsApp
-          </button>
+          {planUrl ? (
+            <a className="btn btn--whatsapp" href={planUrl}>
+              Ver mi plan de salud
+            </a>
+          ) : (
+            <button type="button" className="btn btn--whatsapp" onClick={onWhatsapp}>
+              Continuar por WhatsApp
+            </button>
+          )}
           <button type="button" className="btn btn--ghost" onClick={onRestart}>
             Repetir checkup
           </button>
