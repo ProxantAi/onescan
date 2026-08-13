@@ -107,10 +107,6 @@ export class SyntheticProvider implements VitalsProvider {
   private runMeasurement(options: StartOptions): void {
     if (this.cancelled) return;
 
-    // Sin payload del backend no hay nada que reproducir. Antes este caso caía
-    // en el guion de "señal insuficiente" y le echaba la culpa a la luz del
-    // paciente: una explicación inventada sobre su cuarto para tapar un fallo
-    // nuestro. Se corta de inmediato en vez de gastar 30 s fingiendo medir.
     if (options.replay == null && options.replayFailure == null) {
       this.finish({ status: 'failed', reason: 'sdk_error' });
       return;

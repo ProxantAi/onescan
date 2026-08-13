@@ -27,12 +27,12 @@ import {
 const DEFAULT_DURATION_SEC = 30;
 
 const SIGNAL_HINTS: Record<SignalQuality, string> = {
-  unknown: 'Mantente quieto unos segundos.',
-  no_face: 'Ajusta tu cara dentro del óvalo.',
+  unknown: 'Preparando la medición…',
+  no_face: 'Acomódate frente a la cámara.',
   short: 'Capturando señal…',
-  good: 'Señal estable, no te muevas.',
-  bad: 'Señal débil: busca mejor luz.',
-  unstable: 'Sostén el dispositivo con firmeza.',
+  good: 'Midiendo, no te muevas.',
+  bad: 'Midiendo…',
+  unstable: 'Midiendo…',
 };
 
 export interface ScanTile {

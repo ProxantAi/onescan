@@ -69,7 +69,7 @@ export function useAppController() {
     alert('Demo: aquí el paciente continuaría su onboarding y plan de salud por WhatsApp.');
   }, []);
 
-  useEffect(() => () => scan.cancel(), [scan]);
+  useEffect(() => () => scan.cancel(), [scan.cancel]);
 
   const score = scan.normalized?.score ?? null;
   const ringOffset = score === null ? RING_LEN : RING_LEN * (1 - score / 100);

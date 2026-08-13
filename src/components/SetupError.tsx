@@ -6,8 +6,6 @@ interface SetupErrorProps {
 // Se dejó de usar dangerouslySetInnerHTML: los mensajes ahora vienen de errores
 // del backend y del SDK, no de literales del código, así que inyectarlos como
 // HTML sería un XSS a la espera.
-// Una sesión ya usada o vencida no es un problema de configuración, y
-// anunciarla así manda a revisar variables de entorno que están bien.
 function titleFor(message: string): string {
   const m = message.toLowerCase();
   if (m.includes('already completed')) return 'Este escaneo ya se hizo';
