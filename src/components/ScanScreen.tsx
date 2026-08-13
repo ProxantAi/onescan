@@ -161,7 +161,9 @@ export function ScanScreen({
                   : 'Medición interrumpida'}
               </strong>
               <span className="status-card__hint">
-                Busca mejor luz, quédate quieto e inténtalo de nuevo.
+                {failureReason === 'signal_too_poor'
+                  ? 'Busca mejor luz, quédate quieto e inténtalo de nuevo.'
+                  : 'No fue por la cámara ni por tu entorno. Inténtalo de nuevo.'}
               </span>
             </div>
           </div>
