@@ -1,4 +1,11 @@
 import { APP_CONFIG } from "../../app-config.js";
+import { requireProxantAuth } from "./auth.js";
+
+const session = await requireProxantAuth();
+if (!session) {
+  // Login gate already rendered; halt module so UI handlers never bind.
+  await new Promise(() => {});
+}
 
 const urlParams = new URLSearchParams(window.location.search);
 const API_KEY = urlParams.get("apiKey") || APP_CONFIG.API_KEY;
