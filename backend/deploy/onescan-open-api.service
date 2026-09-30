@@ -1,0 +1,22 @@
+[Unit]
+Description=OneScan open-source comparison API
+After=network.target rppg-api.service
+
+[Service]
+Type=simple
+User=daniel.esqueda
+Group=daniel.esqueda
+WorkingDirectory=/opt/onescan/current/backend
+Environment=PYTHONUNBUFFERED=1
+Environment=OPEN_RPPG_PATH=/opt/onescan/open-rppg
+Environment=LEGACY_RPPG_URL=http://127.0.0.1:8000
+Environment=OMP_NUM_THREADS=2
+Environment=OPENBLAS_NUM_THREADS=2
+ExecStart=/home/daniel.esqueda/onescan-work/venv/bin/python -m uvicorn onescan_api.main:app --host 127.0.0.1 --port 8001 --workers 1
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

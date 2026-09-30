@@ -1,5 +1,12 @@
 # Proxant · Demo de videoselfie (Checkup Cardiometabólico)
 
+## Implementación open source sobre selfie.proxant.ai
+
+El directorio `backend/` añade una aplicación autenticada de captura real y una
+API de comparación entre el motor rPPG-Toolbox existente y open-rppg/FacePhys.
+Consulta `backend/README.md` para instalar, evaluar y desplegar. El demo estático
+descrito abajo conserva sus métricas simuladas; no debe confundirse con esa API.
+
 Prueba de concepto funcional del **HealthCheck CM por videoselfie**. El usuario
 mira a la cámara durante unos segundos y se estiman sus signos vitales a partir
 del flujo sanguíneo del rostro (fotopletismografía remota / rPPG).

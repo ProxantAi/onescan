@@ -1,0 +1,5 @@
+streamlit>=1.57,<2
+streamlit-webrtc>=0.47,<1
+requests>=2.31,<3
+av>=13,<17
+opencv-python-headless>=4.10,<5

@@ -16,3 +16,15 @@ yarn-error.log*
 # Binarios del motor de videobiometría (solo modo real)
 /shenai-sdk
 .vercel
+
+# Python services, recordings and local deployment state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.env
+vendor/
+*.mp4
+*.webm
+*.mov
+validation-results/
