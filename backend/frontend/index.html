@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Proxant Selfie</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<svg class="svg-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="icon-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3v.1"/></symbol>
+<symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M20 4l-2 2M6 18l-2 2"/></symbol>
+<symbol id="icon-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 5h4m-3 14h2"/></symbol>
+<symbol id="icon-face" viewBox="0 0 24 24"><path d="M4 8V4h4m8 0h4v4M4 16v4h4m8 0h4v-4"/><circle cx="12" cy="9" r="3"/><path d="M7 17c0-5 10-5 10 0"/></symbol>
+<symbol id="icon-camera" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="15" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l2-3h4l2 3"/></symbol>
+<symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5 9v12h5v-6h4v6h5V9"/></symbol>
+<symbol id="icon-chart" viewBox="0 0 24 24"><path d="M5 21V11m7 10V3m7 18V7"/></symbol>
+<symbol id="icon-retry" viewBox="0 0 24 24"><path d="M20 9a8 8 0 1 0 0 7m0-13v6h-6"/></symbol>
+<symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+<symbol id="icon-pulse" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5"/></symbol>
+<symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></symbol>
+<symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol>
+</defs></svg>
+<div class="app-shell">
+<header class="appbar"><button id="menu-button" class="icon-button" aria-label="Abrir menú"><svg><use href="#icon-menu"/></svg></button><img class="wordmark" src="proxant-logo.png" alt="Proxant"><button id="help-button" class="icon-button" aria-label="Consejos de captura"><svg><use href="#icon-help"/></svg></button></header>
+<main>
+<section id="prepare" class="screen">
+<div class="steps" aria-label="Paso 1 de 3"><div class="active"><b>1</b><span>Prepara</span></div><div><b>2</b><span>Graba</span></div><div><b>3</b><span>Revisa</span></div></div>
+<h1>Preparemos tu captura</h1>
+<div class="guidance-list">
+<div class="guide-card"><span class="guide-icon sun-icon"><svg><use href="#icon-sun"/></svg></span><div><h2>Luz frente a ti</h2><p>Evita ventanas detrás.</p></div></div>
+<div class="guide-card"><span class="guide-icon"><svg><use href="#icon-phone"/></svg></span><div><h2>Teléfono estable</h2><p>Apóyalo a la altura de tus ojos.</p></div></div>
+<div class="guide-card"><span class="guide-icon"><svg><use href="#icon-face"/></svg></span><div><h2>Rostro centrado</h2><p>Mira al frente, sin hablar.</p></div></div>
+</div>
+<div class="camera-placeholder" aria-label="Guía para centrar el rostro"><svg class="person-guide" viewBox="0 0 200 140" aria-hidden="true"><ellipse cx="100" cy="58" rx="28" ry="34"/><path d="M48 140c0-60 104-60 104 0"/><path class="corner-guide" d="M28 42V20h24m96 0h24v22M28 98v22h24m96 0h24v-22"/></svg><span>La cámara se activa al continuar</span></div>
+<p id="service-notice" class="service-notice" role="status" hidden>El análisis se está iniciando. Intenta en unos momentos.</p>
+<button id="start" class="button primary">Estoy listo <svg><use href="#icon-arrow"/></svg></button>
+</section>
+<section id="record" class="screen recording-screen" hidden>
+<h1>Mantente quieto</h1>
+<span id="light-status" class="status-pill"><svg><use href="#icon-sun"/></svg><span>Comprobando luz…</span></span>
+<div class="camera-view"><video id="camera" autoplay muted playsinline></video><div class="face-oval" aria-hidden="true"></div><span id="camera-loading" class="camera-loading">Encendiendo tu cámara…</span></div>
+<div class="timer" role="progressbar" aria-label="Tiempo de grabación" aria-valuemin="0" aria-valuemax="30"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="timer-track" cx="60" cy="60" r="51"/><circle id="timer-ring" class="timer-progress" cx="60" cy="60" r="51"/></svg><div><strong id="seconds">0</strong><span> / 30 s</span></div></div>
+<p class="capture-hint">Mira al frente y evita hablar</p>
+<button id="stop" class="button stop" disabled><span class="stop-square"></span>Detener</button>
+</section>
+<section id="processing" class="screen processing-screen" hidden><div class="steps"><div><b>1</b><span>Prepara</span></div><div><b>2</b><span>Graba</span></div><div class="active"><b>3</b><span>Revisa</span></div></div><div class="loading-orbit"><svg><use href="#icon-pulse"/></svg></div><h1>Revisando tu captura</h1><p>Estamos analizando la señal de tu rostro.</p><p class="small">Puede tardar unos minutos.</p></section>
+<section id="retry" class="screen" hidden>
+<div class="steps" aria-label="Paso 3 de 3"><div><b>1</b><span>Prepara</span></div><div><b>2</b><span>Graba</span></div><div class="active"><b>3</b><span>Revisa</span></div></div>
+<h1>Mejoremos la toma</h1><p class="intro">Sigue estos consejos para mejorar la captura.</p>
+<div class="warning-card" role="status"><span class="warning-icon">!</span><div><h2 id="retry-message"></h2><p id="retry-context">La luz o el movimiento pueden afectar la señal.</p></div></div>
+<div class="advice-card"><span class="advice-number">1</span><img src="advice-phone.svg" alt="Teléfono a la altura de los ojos"><div><h2 id="advice-one">Coloca el teléfono a la altura de tus ojos</h2><p>Así podremos ver mejor tu rostro.</p></div></div>
+<div class="advice-card"><span class="advice-number">2</span><img src="advice-still.svg" alt="Rostro quieto y centrado"><div><h2 id="advice-two">Quédate quieto durante la grabación</h2><p>Evita mover el teléfono y tu rostro.</p></div></div>
+<button id="retry-start" class="button primary"><svg><use href="#icon-retry"/></svg>Intentar de nuevo</button><button id="more-tips" class="text-button">Ver más consejos</button>
+</section>
+<section id="results" class="screen" hidden><div class="steps"><div><b>1</b><span>Prepara</span></div><div><b>2</b><span>Graba</span></div><div class="active"><b>3</b><span>Revisa</span></div></div><h1>Tu pulso estimado</h1><p class="intro">Resultados de tu última captura.</p><div id="result-cards"></div><p id="comparison-note" class="small"></p><details class="details"><summary>Comparación y detalles</summary><div id="technical-results"></div></details><button id="new-capture" class="button primary"><svg><use href="#icon-retry"/></svg>Nueva captura</button><button id="export" class="text-button"><svg><use href="#icon-download"/></svg>Descargar resultados</button></section>
+</main>
+<nav class="tabbar" aria-label="Navegación principal"><button data-nav="prepare" class="tab"><svg><use href="#icon-home"/></svg><span>Inicio</span></button><button data-nav="scan" class="tab selected"><span class="tab-camera"><svg><use href="#icon-camera"/></svg></span><span>Escanear</span></button><button data-nav="results" class="tab"><svg><use href="#icon-chart"/></svg><span>Resultados</span></button></nav>
+<footer>Estimación experimental</footer>
+</div>
+<dialog id="help-dialog"><div class="dialog-heading"><h2>Consejos de captura</h2><button class="icon-button close-dialog" aria-label="Cerrar">×</button></div><ul><li>Usa luz uniforme frente a ti.</li><li>Apoya el teléfono a la altura de tus ojos.</li><li>Graba solo, con el rostro centrado.</li><li>Quédate quieto y evita hablar durante 30 segundos.</li></ul><p class="small">Estimamos el pulso a partir del video. La precisión aún está en evaluación.</p><button class="button primary close-dialog">Entendido</button></dialog>
+<dialog id="menu-dialog"><div class="dialog-heading"><h2>Tu escaneo</h2><button class="icon-button close-dialog" aria-label="Cerrar">×</button></div><p id="account-name" class="small"></p><label>Método de análisis<select id="selected"><option value="compare">Comparar ambos métodos</option><option value="open_rppg">Open-rppg</option><option value="legacy">Método original</option></select></label><label id="model-label">Modelo original<select id="legacy-model"><option value="efficientphys">EfficientPhys</option><option value="pos">POS</option><option value="chrom">CHROM</option></select></label><label class="checkbox-label"><input id="use-reference" type="checkbox">Tengo un pulso de referencia simultáneo</label><label id="reference-label" hidden>Pulso de referencia (latidos/min)<input id="reference" type="number" min="30" max="220" step="1" value="72"></label><p class="small">Mide la referencia durante el mismo video con un dispositivo de referencia.</p><label class="upload-label">También puedes subir un video<input id="upload" type="file" accept="video/mp4,video/webm,video/quicktime,.mov,.mkv,.avi"></label><p class="small">20–60 segundos · Hasta 50 MB</p><button id="logout" class="text-button">Cerrar sesión</button><button class="button primary close-dialog">Listo</button></dialog>
+<div id="toast" role="status" hidden></div>
+<script type="module" src="app.mjs"></script>
+</body></html>

@@ -57,3 +57,31 @@ recargando/reiniciando `rppg-ui.service` se recupera el punto de entrada anterio
 Las dependencias nuevas están aisladas en
 `/home/daniel.esqueda/onescan-work/venv`; no se actualizaron las de la aplicación
 anterior ni se modificaron los servicios de Labs.
+
+## Rediseño móvil — 30 septiembre 2026
+
+Se implementó la propuesta visual aprobada: guía de preparación, pantalla de
+captura con óvalo/contador circular y recuperación con dos consejos ilustrados.
+La comparación se conserva dentro del menú y de los resultados, sin controles
+técnicos en la pantalla de grabación.
+
+La vista previa ahora es local. MediaRecorder pide 1280×720/30 FPS y envía los
+bytes originales al terminar los 30 segundos, sin el recorte previo a 320 px del
+capturador de WebRTC. La API conserva todos sus controles de calidad y la misma
+normalización para ambos motores. El indicador durante la toma evalúa únicamente
+la exposición; la señal fisiológica y la presencia de rostro se evalúan después.
+
+Verificación: 32 pruebas Python y 6 pruebas JavaScript; se comprobaron el canal
+de Streamlit, decodificación de Base64, un solo envío por captura, supresión de
+resultados rechazados y bloqueo de la interfaz antes del login OIDC. En una
+instancia local aislada se completó una grabación real de MediaRecorder usando
+un flujo sintético de canvas, se transmitió y se recibió una respuesta de rechazo
+de prueba. El archivo se conservó a 1280×720, duró 29.96 s y tuvo 27.23 FPS de
+promedio. Un intervalo de 0.66 s ocasionó correctamente rechazo por cuadros
+perdidos al pasarlo por el validador real. No se relajó ese umbral para hacer pasar
+el fixture. Los mocks de cámara/login/API existen únicamente en el harness local,
+fuera del repositorio y del release desplegado.
+
+Esto verifica transporte y comportamiento de interfaz. No establece precisión
+con personas ni garantiza 720p/30 FPS en todos los dispositivos. Sigue pendiente
+la validación con videos humanos y referencias simultáneas.

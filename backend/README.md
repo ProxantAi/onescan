@@ -2,7 +2,7 @@
 
 La aplicación recibe un video real de 20–60 segundos y ejecuta open-rppg/FacePhys,
 el motor original de rPPG-Toolbox o ambos sobre el mismo video normalizado. La
-grabación conserva tiempos reales; acepta videos a 15–60 FPS sin cambiar la
+grabación usa MediaRecorder y conserva los tiempos reales del navegador; acepta videos a 15–60 FPS sin cambiar la
 duración. Valida presencia del rostro a lo largo del video, iluminación, movimiento
 y calidad de la señal. Los resultados rechazados no contienen pulso ni variabilidad.
 
@@ -37,10 +37,36 @@ el helper original y el `EnvironmentFile` del servicio; no se copian secretos al
 Los archivos temporales de video se eliminan al terminar y no se guardan resultados
 en Supabase/Medplum. El usuario puede descargar su JSON.
 
+## Interfaz móvil y captura
+
+La UI autenticada sirve un componente estático propio desde `frontend/`. Sigue
+el diseño aprobado: preparación con consejos, cámara con guía ovalada y contador
+circular, y recuperación ilustrada. La cámara se solicita únicamente al pulsar
+«Estoy listo». Pide 1280×720 a 30 FPS (según lo que soporte el dispositivo), muestra
+el video local sin el recorrido de ida y vuelta por WebRTC, y graba 30 segundos
+con MediaRecorder. Puede detenerse antes, pero menos de 20 segundos no se analiza.
+La toma se envía al terminar, sin un segundo botón de «analizar».
+
+El indicador de luz usa exposición de la imagen central; no afirma detección de
+rostro ni calidad de pulso antes del análisis. La respuesta del backend determina
+el rechazo y los consejos. Un método aceptado puede mostrarse aunque el otro se
+rechace; las métricas rechazadas siempre se ocultan. El menú permite cambiar
+métodos, aportar una referencia simultánea, subir videos y cerrar la sesión OIDC.
+
+El componente transfiere la grabación por el canal de la sesión de Streamlit al
+backend privado. `ui_bridge.py` limita el tamaño a 50 MB, valida Base64, formato,
+método y referencia. La UI deduplica el evento y libera el payload al recibir el
+resultado. No se guardan videos ni resultados personales de manera persistente.
+Requiere un navegador con `getUserMedia` y MediaRecorder (Safari/Chrome modernos).
+`capture.py` conserva el capturador anterior para compatibilidad, pero la interfaz
+nueva ya no usa WebRTC ni reduce la grabación a 320 píxeles. Ambos motores siguen
+recibiendo el mismo video normalizado a un máximo de 640 píxeles.
+
 ## Pruebas
 
 ```bash
 PYTHONPATH=. .venv/bin/python -m pytest tests -q
+node --test frontend/core.test.mjs
 ```
 
 Las pruebas de la interfaz requieren `requirements-ui.txt`; el resto corre con
