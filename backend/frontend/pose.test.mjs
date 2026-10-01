@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {facePose,PoseGuide} from './pose.mjs';
+import {facePose,PoseGuide,recordingIssue,RecordingMonitor} from './pose.mjs';
 const pose=(yaw=0,extra={})=>({valid:true,centered:true,sized:true,level:true,x:.5,y:.5,height:.6,yaw,...extra});
 function hold(guide,value,start,duration) {
   let state;
@@ -15,6 +15,25 @@ test('all four positions must be held in order before recording is ready',()=>{
   assert.equal(hold(guide,pose(-25),2600,600).stage,'steady');
   assert.equal(hold(guide,pose(),3300,1900).done,false);
   assert.equal(guide.update(pose(),5300).done,true);
+});
+test('recording monitor uses real face/exposure data and gives time to recover',()=>{
+  assert.equal(recordingIssue(pose(0,{brightness:120})),null);
+  assert.equal(recordingIssue(pose(0,{brightness:15})),'poor_lighting');
+  assert.equal(recordingIssue(pose(25)),'face_not_front');
+  assert.equal(recordingIssue({valid:false,reason:'multiple'}),'multiple_faces');
+  assert.equal(recordingIssue(pose(0,{centered:false})),'face_out_of_frame');
+  const monitor=new RecordingMonitor();
+  assert.equal(monitor.update({valid:false,reason:'missing'},0).stop,false);
+  assert.equal(monitor.update({valid:false,reason:'missing'},2000).stop,false);
+  assert.equal(monitor.update(pose(),2200).stop,false);
+  assert.equal(monitor.update({valid:false,reason:'missing'},2500).stop,false);
+  assert.equal(monitor.update({valid:false,reason:'missing'},5000).stop,true);
+});
+test('final readiness also requires adequate exposure of the actual face',()=>{
+  const guide=new PoseGuide();guide.step=3;
+  assert.equal(hold(guide,pose(0,{brightness:10}),0,2200).done,false);
+  assert.equal(hold(guide,pose(0,{brightness:120}),2300,1900).done,false);
+  assert.equal(guide.update(pose(0,{brightness:120}),4300).done,true);
 });
 test('face loss, multiple faces, wrong direction and dropped frames cannot complete a hold',()=>{
   const guide=new PoseGuide();hold(guide,pose(),0,600);

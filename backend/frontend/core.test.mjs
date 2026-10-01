@@ -1,10 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {acceptedResults,rejection,canAnalyzeCapture,waveformPath,MAX_BYTES,chooseMime} from './core.mjs';
+import {acceptedResults,rejection,canAnalyzeCapture,waveformPath,MAX_BYTES,chooseMime,diagnostics,TARGET_SECONDS,STOP_SECONDS} from './core.mjs';
 test('rejected or malformed engine results never become pulse cards',()=>{
  assert.equal(acceptedResults({results:[{accepted:false,heart_rate_bpm:72},{accepted:true,heart_rate_bpm:null},{accepted:true,heart_rate_bpm:NaN},{accepted:true,heart_rate_bpm:900}]}).length,0);
  const partial={results:[{accepted:true,heart_rate_bpm:74},{accepted:false,heart_rate_bpm:null}]};
  assert.equal(acceptedResults(partial).length,1);
+});
+test('successful capture and inconclusive pulse are explained separately',()=>{
+ const data={capture_quality:{accepted:true,reason:null},results:[{accepted:false,reason:'low_signal_quality',heart_rate_bpm:72,hrv:{rmssd_ms:30},bvp_waveform:[1,2],quality:{sqi:.2}}]};
+ assert.match(rejection(data).context,/pasaron la revisión/);
+ assert.ok(!/movimiento pueden/.test(rejection(data).context));
+ const exported=JSON.stringify(diagnostics(data));
+ assert.ok(!/heart_rate_bpm|bvp_waveform|rmssd_ms/.test(exported));
+ assert.match(exported,/sqi/);
+ assert.equal(TARGET_SECONDS,20);assert.ok(STOP_SECONDS>20 && STOP_SECONDS<20.5);
 });
 test('recovery follows actual API reason, not a fabricated movement diagnosis',()=>{
  assert.equal(rejection({capture_quality:{reason:'poor_lighting'},results:[{reason:'low_signal_quality'}]}).code,'poor_lighting');

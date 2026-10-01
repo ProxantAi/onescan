@@ -1,7 +1,7 @@
 # Resultado de implementación — 2026-09-30
 
 Implementación activa en https://selfie.proxant.ai/ mediante el release
-`/opt/onescan/releases/20260930-face-guide-v1`.
+`/opt/onescan/releases/20260930-capture-feedback-v1`.
 
 ## Verificado
 
@@ -110,3 +110,42 @@ y que cancelar la guía no iniciara una nueva grabación. El harness no forma
 parte del código ni del release. Estas pruebas validan funcionamiento, no
 resistencia a suplantación ni precisión con movimientos humanos. Sigue
 pendiente probar los giros con cámaras físicas y diferentes dispositivos.
+
+## Correcciones tras la prueba de usuario — 30 septiembre 2026
+
+La duración predeterminada se redujo a 20 segundos (30 opcionales en el menú),
+con una reserva de 0.15 s para evitar quedar debajo del mínimo por el último
+cuadro. Se sustituyeron las flechas por un ejemplo de rostro en la misma
+orientación que la vista espejo y se añadieron ojos a ambas ilustraciones.
+
+La guía ahora revisa exposición sobre la región detectada del rostro. Durante
+la grabación mantiene el worker a 2 FPS para avisar de ausencia/múltiples
+rostros, descentramiento, giros o mala exposición. Un problema continuo de
+2.5 s interrumpe la captura sin enviar video; ocultar la pestaña también la
+interrumpe. No es una medición de calidad fisiológica en vivo. La API conserva
+SQI >= 0.5, SNR >= 0 dB, los criterios de rostro/movimiento y supresión de
+métricas rechazadas; no se redujeron umbrales para aparentar éxito.
+
+Se corrigió la recuperación: ya no atribuye a luz o movimiento todos los
+rechazos de pulso. Si la captura pasó, lo explica por separado y muestra causas
+de cálculo/quality scores en detalles descargables, sin pulso/HRV rechazados
+ni waveform. La fotografía del mensaje anterior solo demuestra el código
+genérico `low_signal_quality`; no contiene los scores de aquella toma y no
+permite determinar retrospectivamente cuál falló.
+
+Verificación de regresión: 33 pruebas Python y 14 JavaScript. El harness local
+completó una grabación de aproximadamente 20.2 s y recibió una respuesta
+sintética de rechazo tras captura aceptada, verificando la nueva explicación
+y la ocultación de métricas. Los mocks permanecen fuera del release.
+
+En otra prueba local, los giros se simularon solo para llegar a la etapa de
+captura y el modelo real de MediaPipe verificó la fotografía de ejemplo durante
+la grabación a 2 FPS. El video resultante conservó 1280×720, 607 cuadros,
+20.196 s, 30.055 FPS y un intervalo máximo de 0.066 s. El validador real de
+video lo aceptó sin relajar sus controles. Esto verifica rendimiento en esta
+máquina, no todos los teléfonos ni calidad fisiológica del fixture estático.
+
+El harness de pérdida de rostro interrumpió la grabación tras una ausencia
+persistente, terminó el worker y mostró `no_face` sin emitir ninguna solicitud
+de análisis. La prueba utiliza poses sintéticas y valida el flujo de aborto;
+sigue pendiente la prueba con cámara física del usuario.

@@ -1,5 +1,6 @@
-import {TARGET_SECONDS, MIN_SECONDS, MAX_BYTES, acceptedResults, rejection, chooseMime, canAnalyzeCapture, waveformPath} from './core.mjs';
+import {TARGET_SECONDS, STOP_SECONDS, MIN_SECONDS, MAX_BYTES, acceptedResults, rejection, chooseMime, canAnalyzeCapture, waveformPath, diagnostics} from './core.mjs';
 import {CameraGuide} from './guide-camera.mjs';
+import {RecordingMonitor} from './pose.mjs';
 const $ = selector => document.querySelector(selector);
 const screens = [...document.querySelectorAll('.screen')];
 const icons = name => `<svg aria-hidden="true"><use href="#icon-${name}"/></svg>`;
@@ -9,7 +10,7 @@ const emit = value => send('streamlit:setComponentValue', {value, dataType:'json
 const freshId = () => crypto.randomUUID();
 let args = {ready:false}, screen = 'prepare', stream = null, recorder = null, chunks = [], bytes = 0;
 let started = 0, elapsed = 0, tick = null, lastLighting = 0, pendingId = null, lastResponse = null, busy = false;
-let stoppedForSize = false, toastTimer, lightingSamples = 0, faceGuide = null, cameraAttempt = 0, captureAborted = false;
+let stoppedForSize = false, toastTimer, lightingSamples = 0, faceGuide = null, cameraAttempt = 0, captureAborted = false, recordingDuration = TARGET_SECONDS, retryData = null;
 const lightCanvas = document.createElement('canvas'); lightCanvas.width = lightCanvas.height = 48;
 const lightContext = lightCanvas.getContext('2d', {willReadFrequently:true});
 function frameHeight() { send('streamlit:setFrameHeight', {height:Math.ceil(document.documentElement.scrollHeight)}); }
@@ -43,13 +44,18 @@ function retry(data) {
   busy = false; releaseCamera();
   const reason = rejection(data);
   $('#retry-message').textContent = reason.message;
-  const ordinary = ['low_signal_quality','excessive_motion','no_face'].includes(reason.code);
-  const titles = ordinary ? ['Coloca el teléfono a la altura de tus ojos','Quédate quieto durante la grabación'] : reason.hints;
-  $('#advice-one').textContent = titles[0]; $('#advice-two').textContent = titles[1];
-  const paragraphs = document.querySelectorAll('.advice-card p');
-  paragraphs[0].textContent = ordinary ? 'Así podremos ver mejor tu rostro.' : 'Prepara la toma antes de repetir.';
-  paragraphs[1].textContent = ordinary ? 'Evita mover el teléfono y tu rostro.' : 'Si necesitas ayuda, abre los consejos.';
-  $('#retry-context').textContent = ordinary ? 'La luz o el movimiento pueden afectar la señal.' : 'Sigue estas recomendaciones antes de intentar otra vez.';
+  const cleanCapture=data.capture_quality?.accepted===true && reason.code==='low_signal_quality';
+  $('#retry-title').textContent=cleanCapture?'No pudimos estimar el pulso':'Mejoremos la toma';
+  $('#retry-intro').textContent=cleanCapture?'La captura se completó, pero el resultado no fue concluyente.':'Sigue estos consejos para mejorar la captura.';
+  retryData=data;
+  $('#advice-one').textContent=reason.hints[0];$('#advice-two').textContent=reason.hints[1];
+  const paragraphs=document.querySelectorAll('.advice-card p');
+  paragraphs[0].textContent=reason.code==='low_signal_quality'?'Una señal débil puede ocurrir incluso con el rostro bien colocado.':'Prepara la toma antes de repetir.';
+  paragraphs[1].textContent=reason.code==='low_signal_quality'?'Puedes elegir 30 segundos para la siguiente toma.':'Si necesitas ayuda, abre los consejos.';
+  $('#retry-context').textContent=reason.context;
+  $('#retry-details').hidden=!(data.video || data.capture_quality || data.results?.length);
+  $('#retry-diagnostics').textContent=JSON.stringify(diagnostics(data),null,2);
+  $('#retry-summary').innerHTML=(data.results || []).map(item=>`<div class="detail-row"><strong>${escape(item.engine)}</strong><span>${escape(item.reason || 'Sin resultado')}</span></div>`).join('');
   show('retry');
 }
 function renderResults(data) {
@@ -90,6 +96,12 @@ async function submit(blob, mime) {
     emit({action:'analyze', id:pendingId, video, mime, ...settings});
   } catch (error) { retry({error:{code:'invalid_video',message:error.message || 'No se pudo enviar la grabación.'}}); }
 }
+function showExposure(light) {
+  if(!Number.isFinite(light))return;
+  const good=light>=40 && light<=225;
+  $('#light-status').className=`status-pill ${good?'good':'dim'}`;
+  $('#light-status span').textContent=good?'Luz adecuada':light<40?'Busca más luz':'Evita luz directa';
+}
 function checkLight(now) {
   if (now - lastLighting < 800 || !$('#camera').videoWidth) return;
   lastLighting = now;
@@ -101,49 +113,65 @@ function checkLight(now) {
     let total = 0; for (let i=0;i<pixels.length;i+=4) total += pixels[i]*.299+pixels[i+1]*.587+pixels[i+2]*.114;
     const light = total/(pixels.length/4), good = light >= 40 && light <= 225;
     lightingSamples++;
-    $('#light-status').className = `status-pill ${good ? 'good' : 'dim'}`;
-    $('#light-status span').textContent = good ? 'Luz adecuada' : light < 40 ? 'Busca más luz' : 'Evita luz directa';
+    showExposure(light);
   } catch { $('#light-status span').textContent = 'Mantén una luz uniforme'; }
 }
 function guideState(state) {
-  const titles={front:'Mira al frente',left:'Gira a tu izquierda',right:'Gira a tu derecha',steady:'Vuelve al centro'};
-  const hints={missing:'Coloca tu rostro dentro del óvalo',multiple:'Debe aparecer solo tu rostro',closer:'Acércate un poco',farther:'Aléjate un poco',center:'Centra tu rostro en el óvalo',level:'Mantén la cabeza a la altura de tus ojos',turn:state.stage==='steady'?'Mira al frente para comenzar':state.stage==='front'?'Mira a la cámara':'Gira suavemente, sin mover el teléfono',hold:state.stage==='steady'?'Mantente quieto. La captura comenzará sola':'Mantén esta posición un momento',ready:'Listo. Comenzamos la captura'};
-  $('#capture-title').textContent=titles[state.stage];
-  $('#capture-hint').textContent=hints[state.reason] || 'Sigue la guía';
-  const arrow=$('#turn-arrow');arrow.hidden=!['left','right'].includes(state.stage);
-  arrow.textContent=state.stage==='left'?'←':'→';arrow.classList.toggle('right',state.stage==='right');
+  showExposure(state.brightness);
+  const titles={front:'Mira al frente',left:'Gira suavemente',right:'Ahora al otro lado',steady:'Vuelve al centro'};
+  const hints={missing:'Coloca tu rostro dentro del óvalo',multiple:'Debe aparecer solo tu rostro',closer:'Acércate un poco',farther:'Aléjate un poco',center:'Centra tu rostro en el óvalo',level:'Mantén la cabeza a la altura de tus ojos',light:'Busca luz uniforme frente a ti',turn:state.stage==='steady'?'Mira al frente para comenzar':state.stage==='front'?'Mira a la cámara':'Imita el giro de ejemplo, sin mover el teléfono',hold:state.stage==='steady'?'Mantente quieto. La captura comenzará sola':'Mantén esta posición un momento',ready:'Listo. Comenzamos la captura'};
+  $('#capture-title').textContent=titles[state.stage];$('#capture-hint').textContent=hints[state.reason] || 'Sigue la guía';
+  const side=['left','right'].includes(state.stage),example=$('#guide-example');
+  example.src=side?'guide-turn.svg':'advice-still.svg';example.classList.toggle('mirror',state.stage==='left');
+  example.alt=side?'Ejemplo del giro que debes imitar':'Ejemplo del rostro al frente';
+  $('#guide-example-label').textContent=side?'Imita este giro':'Mira al frente';
   $('.face-oval').classList.toggle('detected',state.reason==='hold' || state.done);
   for(const [i,item] of [...document.querySelectorAll('.guide-progress span')].entries()) {
     item.classList.toggle('complete',i<state.step || state.done);item.classList.toggle('active',i===state.step && !state.done);
   }
-  $('.guide-progress').setAttribute('aria-valuenow',state.done?4:state.step);
-  $('#hold-progress').style.width=`${state.progress*100}%`;
+  $('.guide-progress').setAttribute('aria-valuenow',state.done?4:state.step);$('#hold-progress').style.width=`${state.progress*100}%`;
+}
+function abortCapture(code) {
+  captureAborted=true;
+  if(recorder?.state==='recording')recorder.stop();
+  retry({error:{code}});
+}
+function monitorCapture(pose,now,monitor) {
+  const state=monitor.update(pose,now),good=!state.code;
+  showExposure(pose.brightness);
+  const messages={no_face:'No vemos tu rostro',multiple_faces:'Debe aparecer solo tu rostro',poor_lighting:'Mejora la luz sobre tu rostro',face_out_of_frame:'Vuelve al centro del óvalo',face_not_front:'Mira al frente'};
+  $('#face-status').className=`status-pill ${good?'good':'dim'}`;
+  $('#face-status span').textContent=good?'Rostro centrado':messages[state.code];
+  $('.face-oval').classList.toggle('attention',!good);
+  $('#capture-hint').textContent=good?'Mira al frente y evita hablar':messages[state.code];
+  if(state.stop)abortCapture(state.code);
 }
 function startRecording() {
   if(!stream?.active)throw new Error('La cámara dejó de estar disponible.');
-  // End the detection worker before recording so its CPU work and the guided
-  // movements cannot affect the 30-second pulse video.
-  faceGuide?.close();faceGuide=null;
-  $('#face-guide').hidden=$('#turn-arrow').hidden=$('#cancel-guide').hidden=true;
+  // Guided turns stay outside the video. Reuse the worker at only 2 FPS
+  // while recording to catch face/lighting issues without main-thread inference.
+  const monitor=new RecordingMonitor();
+  $('#face-guide').hidden=$('#cancel-guide').hidden=true;$('#face-status').hidden=false;
   $('#record-timer').hidden=$('#stop').hidden=false;
   $('#capture-title').textContent='Mantente quieto';
   $('#capture-hint').textContent='Mira al frente y evita hablar';
   $('.face-oval').classList.remove('detected');
   const mime=chooseMime(MediaRecorder);
   recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:4_000_000});
-  const activeRecorder=recorder;
+  const activeRecorder=recorder,attempt=cameraAttempt;
   recorder.addEventListener('dataavailable',event=>{
-    if(captureAborted)return;
+    if(captureAborted || attempt!==cameraAttempt)return;
     if(event.data.size){chunks.push(event.data);bytes+=event.data.size;}
     if(bytes>MAX_BYTES && activeRecorder.state==='recording'){stoppedForSize=true;activeRecorder.stop();}
   });
   recorder.addEventListener('error',()=>{
+    if(attempt!==cameraAttempt)return;
     captureAborted=true;chunks=[];bytes=0;
     if(activeRecorder.state==='recording')activeRecorder.stop();
     retry({error:{code:'invalid_video',message:'La cámara no pudo completar la grabación.'}});
   });
   recorder.addEventListener('stop',async()=>{
-    if(captureAborted)return;
+    if(captureAborted || attempt!==cameraAttempt)return;
     const duration=(performance.now()-started)/1000;
     releaseCamera();
     if(stoppedForSize || !canAnalyzeCapture(duration,bytes)) {
@@ -154,14 +182,15 @@ function startRecording() {
     await submit(blob,blob.type);
   },{once:true});
   recorder.start(500);started=performance.now();elapsed=0;
+  faceGuide?.monitor((pose,now)=>monitorCapture(pose,now,monitor));
   $('#stop').disabled=false;
   tick=setInterval(()=>{
     elapsed=(performance.now()-started)/1000;
-    $('#seconds').textContent=Math.min(TARGET_SECONDS,Math.floor(elapsed));
-    $('.timer').setAttribute('aria-valuenow',Math.min(TARGET_SECONDS,Math.floor(elapsed)));
-    $('#timer-ring').style.strokeDashoffset=320.443*(1-Math.min(elapsed/TARGET_SECONDS,1));
-    checkLight(performance.now());
-    if(elapsed>=TARGET_SECONDS && activeRecorder.state==='recording'){$('#stop').disabled=true;activeRecorder.stop();}
+    $('#seconds').textContent=Math.min(recordingDuration,Math.floor(elapsed));
+    $('.timer').setAttribute('aria-valuenow',Math.min(recordingDuration,Math.floor(elapsed)));
+    $('#timer-ring').style.strokeDashoffset=320.443*(1-Math.min(elapsed/recordingDuration,1));
+    if(!faceGuide)checkLight(performance.now());
+    if(elapsed>=recordingDuration+(STOP_SECONDS-TARGET_SECONDS) && activeRecorder.state==='recording'){$('#stop').disabled=true;activeRecorder.stop();}
   },100);
 }
 async function startCamera() {
@@ -173,6 +202,9 @@ async function startCamera() {
   $('#record-timer').hidden=$('#stop').hidden=true;$('#face-guide').hidden=false;$('#cancel-guide').hidden=false;
   $('#light-status').className='status-pill';$('#light-status span').textContent='Comprobando luz…';
   guideState({stage:'front',step:0,reason:'waiting',progress:0});
+  recordingDuration=Number($('#capture-duration').value)===30?30:TARGET_SECONDS;
+  $('#duration-label').textContent=` / ${recordingDuration} s`;$('#record-timer').setAttribute('aria-valuemax',recordingDuration);
+  $('#face-status').hidden=true;$('.face-oval').classList.remove('attention');
   chunks=[];bytes=0;stoppedForSize=false;captureAborted=false;lightingSamples=0;recorder=null;
   const attempt=++cameraAttempt;
   try {
@@ -190,7 +222,7 @@ async function startCamera() {
     await Promise.all([video.play(),playing]);
     if(attempt!==cameraAttempt)return;
     $('#camera-loading').textContent='Preparando la guía…';
-    tick=setInterval(()=>checkLight(performance.now()),250);
+    checkLight(performance.now());
     faceGuide=new CameraGuide(video,{
       onState:state=>{$('#camera-loading').hidden=true;guideState(state);},
       onReady:()=>{
@@ -198,7 +230,11 @@ async function startCamera() {
         clearInterval(tick);tick=null;
         try{startRecording();}catch{retry({error:{code:'invalid_video',message:'No se pudo iniciar la grabación. Intenta de nuevo.'}});}
       },
-      onError:code=>{if(attempt===cameraAttempt)retry({error:{code}});},
+      onError:code=>{
+        if(attempt!==cameraAttempt)return;
+        if(recorder?.state==='recording') {faceGuide=null;$('#face-status').className='status-pill dim';$('#face-status span').textContent='Revisión de rostro no disponible';}
+        else retry({error:{code}});
+      },
     });
     faceGuide.start();
     stream.getVideoTracks()[0].addEventListener('ended',()=>{
@@ -237,6 +273,11 @@ $('#upload').addEventListener('change', async () => {
   await submit(file,mime);
 });
 $('#logout').addEventListener('click',() => {if(!busy) {releaseCamera();emit({id:freshId(),action:'logout'});}});
+$('#export-diagnostics').addEventListener('click',()=>{
+  if(!retryData)return;
+  const url=URL.createObjectURL(new Blob([JSON.stringify(diagnostics(retryData),null,2)],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='proxant-selfie-diagnostico.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 $('#export').addEventListener('click',() => {
   if(!args.result) return;
   const url=URL.createObjectURL(new Blob([JSON.stringify(args.result,null,2)],{type:'application/json'}));
@@ -255,5 +296,6 @@ window.addEventListener('message',event => {
   }
   frameHeight();
 });
+document.addEventListener('visibilitychange',()=>{if(document.hidden && recorder?.state==='recording')abortCapture('capture_interrupted');});
 window.addEventListener('pagehide',()=>{captureAborted=true;if(recorder?.state==='recording')recorder.stop();releaseCamera();});
 send('streamlit:componentReady',{apiVersion:1});frameHeight();

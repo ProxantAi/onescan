@@ -20,6 +20,16 @@ def test_nan_is_not_accepted():
     assert not gate(output, True)["accepted"]
 
 
+def test_rejection_reports_actual_calculation_causes_without_vitals():
+    output = result("test", "model")
+    output.update(heart_rate_bpm=72, hrv={"rmssd_ms": 30})
+    value = gate(output, False, ["sqi_below_threshold"])
+    assert value["quality"]["rejection_causes"] == ["sqi_below_threshold"]
+    assert value["heart_rate_bpm"] is None and value["hrv"] == {}
+    missing = gate(result("test", "model"), True)
+    assert missing["quality"]["rejection_causes"] == ["pulse_not_computable"]
+
+
 def test_agreement_does_not_claim_accuracy_and_reference_errors_are_explicit():
     outputs = []
     for name, hr in (("first", 70), ("second", 74)):

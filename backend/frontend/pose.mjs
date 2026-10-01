@@ -12,7 +12,7 @@ export function facePose(result) {
   const eyeWidth = rightEye.x-leftEye.x;
   if (eyeWidth <= .025 || height <= 0) return {valid:false,reason:'missing'};
   // Normalized landmark z uses the same scale as x. Positive yaw means the
-  // person's left, shown by a left arrow in the mirrored camera preview.
+  // person's left, shown by a matching profile in the mirrored preview.
   const yaw = degrees(Math.atan2(leftEye.z-rightEye.z,eyeWidth));
   const roll = degrees(Math.atan2(rightEye.y-leftEye.y,eyeWidth));
   const eyeY = (leftEye.y+rightEye.y)/2;
@@ -20,7 +20,7 @@ export function facePose(result) {
   const centered = x >= .35 && x <= .65 && y >= .28 && y <= .68;
   const sized = width >= .20 && width <= .72 && height >= .30 && height <= .88;
   const level = Math.abs(roll) <= 14 && nosePosition >= .12 && nosePosition <= .75;
-  return {valid:true,x,y,width,height,yaw,roll,centered,sized,level};
+  return {valid:true,x,y,width,height,yaw,roll,centered,sized,level,brightness:result.brightness};
 }
 export const GUIDE_STEPS = ['front','left','right','steady'];
 export class PoseGuide {
@@ -41,6 +41,9 @@ export class PoseGuide {
       return this.state(!pose.sized ? pose.height < .30 || pose.width < .20 ? 'closer' : 'farther' : !pose.centered ? 'center' : 'level');
     }
     const stage = GUIDE_STEPS[this.step];
+    if(stage==='steady' && Number.isFinite(pose.brightness) && (pose.brightness<40 || pose.brightness>225)) {
+      this.since=null;this.anchor=null;return this.state('light');
+    }
     const aligned = stage==='left' ? pose.yaw >= 18 && pose.yaw <= 45 : stage==='right' ? pose.yaw <= -18 && pose.yaw >= -45 : Math.abs(pose.yaw)<=12;
     if (!aligned) {this.since=null;this.anchor=null;return this.state('turn');}
     if (stage==='steady' && this.anchor && (Math.hypot(pose.x-this.anchor.x,pose.y-this.anchor.y)>.025 || Math.abs(pose.height-this.anchor.height)>.04 || Math.abs(pose.yaw-this.anchor.yaw)>5)) {
@@ -57,4 +60,19 @@ export class PoseGuide {
     return {...this.state('hold'),progress};
   }
   state(reason) {return {step:this.step,stage:GUIDE_STEPS[this.step],reason,progress:0,done:false};}
+}
+export function recordingIssue(pose) {
+  if(!pose.valid)return pose.reason==='multiple'?'multiple_faces':'no_face';
+  if(Number.isFinite(pose.brightness) && (pose.brightness<40 || pose.brightness>225))return 'poor_lighting';
+  if(!pose.centered || !pose.sized)return 'face_out_of_frame';
+  if(!pose.level || Math.abs(pose.yaw)>15)return 'face_not_front';
+  return null;
+}
+export class RecordingMonitor {
+  constructor() {this.code=null;this.since=null;}
+  update(pose,now) {
+    const code=recordingIssue(pose);
+    if(code!==this.code) {this.code=code;this.since=code?now:null;}
+    return {code,stop:Boolean(code && now-this.since>=2500)};
+  }
 }

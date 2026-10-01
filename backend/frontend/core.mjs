@@ -1,16 +1,21 @@
-export const TARGET_SECONDS = 30;
+export const TARGET_SECONDS = 20;
+// Leave one frame of margin at the boundary without displaying a longer timer.
+export const STOP_SECONDS = TARGET_SECONDS + .15;
 export const MIN_SECONDS = 20;
 export const MAX_BYTES = 50 * 1024 * 1024;
 export const REASONS = {
   face_guide_unavailable: ['No pudimos iniciar la guía del rostro.', 'Actualiza Safari o Chrome y vuelve a intentar.', 'También puedes subir un video desde el menú.'],
-  face_guide_timeout: ['No pudimos completar los movimientos.', 'Gira suavemente siguiendo las flechas.', 'Vuelve al centro y mantente quieto.'],
+  face_guide_timeout: ['No pudimos completar los movimientos.', 'Imita el giro que muestra la guía.', 'Vuelve al centro y mantente quieto.'],
+  face_not_front: ['Tu rostro dejó de mirar al frente.', 'Mira a la cámara durante la captura.', 'Los giros terminan antes de grabar.'],
+  face_out_of_frame: ['Tu rostro salió del centro de la toma.', 'Mantén el rostro dentro del óvalo.', 'Apoya el teléfono a la altura de tus ojos.'],
+  capture_interrupted: ['La captura se interrumpió.', 'Mantén esta pantalla abierta mientras grabas.', 'La captura dura 20 segundos.'],
   no_face: ['No pudimos ver tu rostro durante toda la toma.', 'Coloca el teléfono a la altura de tus ojos.', 'Mantén tu rostro dentro del óvalo.'],
   multiple_faces: ['Apareció más de un rostro.', 'Graba sin otras personas en cámara.', 'Mantén tu rostro centrado.'],
   poor_lighting: ['Necesitamos más luz sobre tu rostro.', 'Busca una luz uniforme frente a ti.', 'Evita ventanas detrás de ti.'],
   excessive_motion: ['La imagen tuvo demasiado movimiento.', 'Apoya el teléfono a la altura de tus ojos.', 'Evita hablar y mover la cabeza.'],
   capture_too_slow: ['La cámara perdió demasiados cuadros.', 'Mejora la luz y cierra otras aplicaciones.', 'Apoya el teléfono durante la grabación.'],
-  video_too_short: ['La toma fue demasiado corta.', 'Graba durante al menos 20 segundos.', 'La captura termina sola a los 30 segundos.'],
-  low_signal_quality: ['No pudimos obtener una señal suficiente.', 'Coloca el teléfono a la altura de tus ojos.', 'Quédate quieto durante la grabación.'],
+  video_too_short: ['La toma fue demasiado corta.', 'Graba durante al menos 20 segundos.', 'La captura termina sola a los 20 segundos.'],
+  low_signal_quality: ['El análisis no encontró un pulso suficientemente claro.', 'Usa luz natural uniforme frente a ti.', 'Prueba una toma más larga desde el menú.'],
   engine_error: ['No pudimos completar el análisis.', 'Espera unos momentos y vuelve a intentar.', 'Si continúa, prueba el otro método en el menú.'],
   unavailable: ['El análisis no está disponible por ahora.', 'Espera unos momentos antes de repetir.', 'Puedes volver a analizar un video desde el menú.'],
   busy: ['Hay otra captura en análisis.', 'Espera a que termine antes de repetir.', 'Intenta nuevamente en unos momentos.'],
@@ -25,7 +30,21 @@ export function acceptedResults(data) {
 export function rejection(data) {
   const code = data?.error?.code || data?.capture_quality?.reason || (data?.results || []).find(x => !x.accepted)?.reason || 'low_signal_quality';
   const hints = REASONS[code] || REASONS.low_signal_quality;
-  return {code, message: data?.error?.message || hints[0], hints: hints.slice(1)};
+  const capturePassed = data?.capture_quality?.accepted === true;
+  const context = code==='low_signal_quality' ? capturePassed ? 'El rostro, la luz y el movimiento pasaron la revisión. La señal de pulso no alcanzó el criterio del análisis.' : 'Preparar el rostro no garantiza una señal de pulso suficiente.' : {
+    poor_lighting:'La revisión detectó exposición insuficiente o excesiva.',
+    no_face:'El rostro no se pudo seguir de forma continua.',
+    multiple_faces:'La toma debe contener un solo rostro.',
+    excessive_motion:'La posición del rostro cambió demasiado durante el video.',
+    capture_too_slow:'La grabación perdió cuadros; no es un diagnóstico de iluminación.',
+    engine_error:'Un método no pudo completar su cálculo. Esto puede ser un problema del servicio.',
+  }[code] || 'Sigue estas recomendaciones antes de intentar otra vez.';
+  return {code, message: data?.error?.message || hints[0], hints: hints.slice(1),context};
+}
+export function diagnostics(data) {
+  // Do not expose rejected vital estimates or signal traces in recovery.
+  return {video:data?.video,capture_quality:data?.capture_quality,error:data?.error,
+    results:(data?.results || []).map(x=>({engine:x.engine,model_used:x.model_used,accepted:x.accepted,reason:x.reason,quality:x.quality,processing_seconds:x.processing_seconds,warnings:x.warnings}))};
 }
 export function chooseMime(Recorder) {
   return ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(x => Recorder.isTypeSupported(x)) || '';

@@ -22,12 +22,18 @@ export class CameraGuide {
       } else if(data.type==='pose') {
         this.inFlight=false;clearTimeout(this.watchdog);
         if(document.hidden) {this.guide.reset();return;}
-        const state=this.guide.update(facePose(data.result),data.timestamp);
-        this.onState(state);
-        if(state.done) {this.close();this.onReady();}
+        const pose=facePose(data.result);
+        if(this.monitoring) {this.onMonitor(pose,data.timestamp);return;}
+        const state=this.guide.update(pose,data.timestamp);
+        this.onState({...state,brightness:pose.brightness});
+        if(state.done) {clearInterval(this.timer);this.timer=null;this.onReady();}
       } else if(data.type==='error') this.fail();
     };
     this.worker.postMessage({type:'init'});
+  }
+  monitor(callback) {
+    this.monitoring=true;this.onMonitor=callback;this.deadline=Infinity;
+    clearInterval(this.timer);this.timer=setInterval(()=>this.sample(),500);
   }
   async sample() {
     if(this.closed || this.inFlight || document.hidden || this.video.readyState<2)return;

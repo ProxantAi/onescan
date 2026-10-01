@@ -47,19 +47,30 @@ el video local sin el recorrido de ida y vuelta por WebRTC. MediaPipe prepara la
 toma con una secuencia de frente, izquierda, derecha y regreso al centro. Cada
 posición debe mantenerse y el regreso requiere dos segundos de estabilidad.
 La detección corre en un worker del navegador, a un máximo de 8 cuadros por
-segundo, sobre la misma región visible de la cámara. Los cuadros de la guía no
-se envían al servidor ni se incluyen en la grabación. El worker se termina antes
-de comenzar los 30 segundos con MediaRecorder. Puede detenerse antes, pero menos
-de 20 segundos no se analiza. Si no puede cargar la guía, muestra un error y
+segundo durante la guía y 2 durante la grabación, sobre la misma región visible
+de la cámara. Los giros no se incluyen en la grabación. Se graban 20 segundos
+por defecto, con una pequeña reserva de 0.15 s para el último cuadro; el menú
+permite elegir 30 segundos. Puede detenerse antes, pero menos de 20 segundos no
+se analiza. Una ilustración de rostro muestra la posición a imitar, sin flechas
+ni referencias ambiguas a izquierda/derecha. Durante la captura, la UI avisa
+si se pierde el rostro, entra otra persona, se sale del centro, gira la cara
+o la exposición del rostro resulta insuficiente/excesiva. Si persiste 2.5 s,
+descarta la toma localmente sin enviarla al análisis. Ocultar la pestaña
+interrumpe la captura. Si falla el monitor, se indica y los controles del
+backend siguen siendo obligatorios. Si no puede cargar la guía, muestra un error y
 permite reintentar o subir un video; no afirma que la comprobación pasó.
 La toma se envía al terminar, sin un segundo botón de «analizar».
 
 La guía comprueba geometría y seguimiento del rostro, no identidad ni protección
 contra fotos o videos. Los umbrales de orientación son operacionales y requieren
-validación con usuarios. El indicador de luz usa exposición de la imagen central;
-no afirma calidad de pulso antes del análisis. La respuesta del backend determina
-el rechazo y los consejos. Un método aceptado puede mostrarse aunque el otro se
-rechace; las métricas rechazadas siempre se ocultan. El menú permite cambiar
+validación con usuarios. El indicador de luz usa exposición del rostro
+detectado, con la imagen central como respaldo; no afirma calidad de pulso antes
+del análisis. La respuesta del backend determina
+el rechazo y los consejos. La recuperación distingue errores de captura de una señal de pulso débil tras
+una captura aceptada. Permite consultar/exportar las causas y scores de calidad
+(SQI/SNR), sin mostrar pulso/HRV rechazados ni señales BVP. Los criterios de
+aceptación de los motores se conservan. Un método aceptado puede mostrarse
+aunque el otro se rechace; las métricas rechazadas siempre se ocultan. El menú permite cambiar
 métodos, aportar una referencia simultánea, subir videos y cerrar la sesión OIDC.
 
 El componente transfiere la grabación por el canal de la sesión de Streamlit al

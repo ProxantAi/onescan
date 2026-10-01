@@ -28,8 +28,16 @@ def result(engine, model):
             "processing_seconds": None, "warnings": []}
 
 
-def gate(output, quality_ok):
+def gate(output, quality_ok, causes=None):
     hr = finite(output.get("heart_rate_bpm"))
+    rejected = list(causes or [])
+    if not quality_ok and not rejected:
+        rejected.append("signal_below_threshold")
+    if hr is None:
+        rejected.append("pulse_not_computable")
+    elif not 30 <= hr <= 220:
+        rejected.append("pulse_out_of_supported_range")
+    output["quality"]["rejection_causes"] = rejected
     if not quality_ok or hr is None or not 30 <= hr <= 220:
         output.update(accepted=False, reason="low_signal_quality", heart_rate_bpm=None, hrv={})
     else:
@@ -77,7 +85,15 @@ class OpenRppgEngine:
             indices = np.linspace(0, len(signal) - 1, min(512, len(signal))).astype(int)
             output["bvp_waveform"] = [finite(signal[index]) for index in indices]
         missing_fraction = statistics.get("null", 0) / max(1, statistics.get("frames", 0))
-        return gate(output, sqi is not None and sqi >= MIN_SQI and missing_fraction <= 0.2)
+        output["quality"]["missing_face_fraction"] = round(missing_fraction, 4)
+        causes = []
+        if sqi is None:
+            causes.append("sqi_not_computable")
+        elif sqi < MIN_SQI:
+            causes.append("sqi_below_threshold")
+        if missing_fraction > 0.2:
+            causes.append("face_tracking_gaps")
+        return gate(output, not causes, causes)
 
 
 def analyze_legacy(path: Path, model: str):
@@ -102,7 +118,8 @@ def analyze_legacy(path: Path, model: str):
                   processing_seconds=round(time.perf_counter() - started, 3),
                   warnings=values.get("warnings", []))
     # Deliberately omit the old experimental blood-pressure formula.
-    return gate(output, snr is not None and snr >= MIN_LEGACY_SNR)
+    causes = ["snr_not_computable"] if snr is None else ["snr_below_threshold"] if snr < MIN_LEGACY_SNR else []
+    return gate(output, not causes, causes)
 
 
 def comparison(results, reference_bpm=None):
