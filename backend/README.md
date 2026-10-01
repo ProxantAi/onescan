@@ -46,13 +46,20 @@ circular, y recuperación ilustrada. La cámara se solicita únicamente al pulsa
 el video local sin el recorrido de ida y vuelta por WebRTC. MediaPipe prepara la
 toma con una secuencia de frente, izquierda, derecha y regreso al centro. Cada
 posición debe mantenerse y el regreso requiere dos segundos de estabilidad.
+Los giros usan un cambio pequeño respecto a la postura frontal promediada de
+cada usuario: entre 10 y 32 unidades angulares del estimador de landmarks,
+en lugar de exigir 18–45 desde una referencia absoluta. Estos valores no son
+ángulos físicos calibrados. Mantenerse al frente o girar al lado contrario no
+completa el paso; perder el rostro reinicia también la referencia frontal.
 La detección corre en un worker del navegador, a un máximo de 8 cuadros por
 segundo durante la guía y 2 durante la grabación, sobre la misma región visible
 de la cámara. Los giros no se incluyen en la grabación. Se graban 20 segundos
 por defecto, con una pequeña reserva de 0.15 s para el último cuadro; el menú
 permite elegir 30 segundos. Puede detenerse antes, pero menos de 20 segundos no
-se analiza. Una ilustración de rostro muestra la posición a imitar, sin flechas
-ni referencias ambiguas a izquierda/derecha. Durante la captura, la UI avisa
+se analiza. Una ilustración con un giro leve y una flecha curva muestran la
+posición a imitar; ambas siguen la misma orientación de la vista en espejo.
+La indicación «Así está bien» confirma cuando el giro ya es suficiente.
+Durante la captura, la UI avisa
 si se pierde el rostro, entra otra persona, se sale del centro, gira la cara
 o la exposición del rostro resulta insuficiente/excesiva. Si persiste 2.5 s,
 descarta la toma localmente sin enviarla al análisis. Ocultar la pestaña

@@ -23,16 +23,22 @@ export function facePose(result) {
   return {valid:true,x,y,width,height,yaw,roll,centered,sized,level,brightness:result.brightness};
 }
 export const GUIDE_STEPS = ['front','left','right','steady'];
+// Landmark yaw is an estimate, not a calibrated physical angle. A small change
+// from the user's own neutral pose is enough for this preparation step.
+export const TURN_MIN = 10, TURN_MAX = 32;
+export function turnDirection(stage) {
+  return stage==='left'?'left':stage==='right'?'right':null;
+}
 export class PoseGuide {
   constructor() {this.reset();}
-  reset() {this.step=0;this.since=null;this.last=null;this.anchor=null;this.missingSince=null;}
+  reset() {this.step=0;this.since=null;this.last=null;this.anchor=null;this.missingSince=null;this.neutralYaw=null;this.frontSum=0;this.frontCount=0;}
   update(pose,now) {
     if (!Number.isFinite(now) || (this.last !== null && now <= this.last)) return this.state('waiting');
     if (this.last !== null && now-this.last > 600) {this.since=null;this.anchor=null;}
     this.last=now;
     if (!pose.valid) {
       this.since=null;this.anchor=null;this.missingSince ??= now;
-      if (now-this.missingSince >= 1500) this.step=0;
+      if (now-this.missingSince >= 1500) {this.step=0;this.neutralYaw=null;}
       return this.state(pose.reason);
     }
     this.missingSince=null;
@@ -44,16 +50,20 @@ export class PoseGuide {
     if(stage==='steady' && Number.isFinite(pose.brightness) && (pose.brightness<40 || pose.brightness>225)) {
       this.since=null;this.anchor=null;return this.state('light');
     }
-    const aligned = stage==='left' ? pose.yaw >= 18 && pose.yaw <= 45 : stage==='right' ? pose.yaw <= -18 && pose.yaw >= -45 : Math.abs(pose.yaw)<=12;
+    const relativeYaw=pose.yaw-(this.neutralYaw??0);
+    const aligned = stage==='left' ? relativeYaw >= TURN_MIN && relativeYaw <= TURN_MAX : stage==='right' ? relativeYaw <= -TURN_MIN && relativeYaw >= -TURN_MAX : Math.abs(pose.yaw)<=12 && (stage!=='steady' || Math.abs(relativeYaw)<=8);
     if (!aligned) {this.since=null;this.anchor=null;return this.state('turn');}
     if (stage==='steady' && this.anchor && (Math.hypot(pose.x-this.anchor.x,pose.y-this.anchor.y)>.025 || Math.abs(pose.height-this.anchor.height)>.04 || Math.abs(pose.yaw-this.anchor.yaw)>5)) {
       this.since=null;this.anchor=null;
     }
+    if(this.since===null && stage==='front') {this.frontSum=0;this.frontCount=0;}
     this.since ??= now; this.anchor ??= pose;
+    if(stage==='front') {this.frontSum+=pose.yaw;this.frontCount++;}
     const hold = stage==='steady' ? 2000 : stage==='front' ? 700 : 600;
     const progress = Math.min(1,(now-this.since)/hold);
     if (progress>=1) {
       if (stage==='steady') return {...this.state('ready'),done:true,progress:1};
+      if(stage==='front')this.neutralYaw=this.frontSum/this.frontCount;
       this.step++;this.since=null;this.anchor=null;
       return this.state('turn');
     }

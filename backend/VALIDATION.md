@@ -1,7 +1,7 @@
 # Resultado de implementación — 2026-09-30
 
 Implementación activa en https://selfie.proxant.ai/ mediante el release
-`/opt/onescan/releases/20260930-capture-feedback-v1`.
+`/opt/onescan/releases/20260930-gentle-turn-v1`.
 
 ## Verificado
 
@@ -149,3 +149,21 @@ El harness de pérdida de rostro interrumpió la grabación tras una ausencia
 persistente, terminó el worker y mostró `no_face` sin emitir ninguna solicitud
 de análisis. La prueba utiliza poses sintéticas y valida el flujo de aborto;
 sigue pendiente la prueba con cámara física del usuario.
+
+## Giros pequeños y flecha curva — 30 septiembre 2026
+
+Tras la prueba con cámara del usuario se redujo el cambio requerido de yaw del
+estimador: de 18–45 respecto a cero a 10–32 respecto a la postura frontal
+promediada del usuario. No son ángulos físicos calibrados. Se conserva el orden,
+la permanencia de cada posición, la estabilidad frontal de dos segundos y todos
+los controles de rostro, exposición, captura y calidad de los motores.
+
+Se añadió una flecha curva junto a un ejemplo de giro más leve, con dirección
+coherente con la vista en espejo y texto que confirma cuándo dejar de girar.
+16 pruebas JavaScript pasan, incluidas giros pequeños desde una postura neutral
+desplazada, rechazo del giro contrario, ausencia de movimiento, sobrepaso del
+rango y reinicio de la referencia tras perder el rostro. En el harness local,
+una postura neutral de -4 y giros de +12/-12 respecto a ella completaron la
+preparación e iniciaron la grabación; se comprobó visualmente la flecha junto al
+ejemplo. Los mocks siguen fuera del repositorio y del release. Esta corrección
+aún requiere confirmar la comodidad con la cámara física del usuario.

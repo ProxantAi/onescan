@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {facePose,PoseGuide,recordingIssue,RecordingMonitor} from './pose.mjs';
+import {facePose,PoseGuide,recordingIssue,RecordingMonitor,turnDirection} from './pose.mjs';
 const pose=(yaw=0,extra={})=>({valid:true,centered:true,sized:true,level:true,x:.5,y:.5,height:.6,yaw,...extra});
 function hold(guide,value,start,duration) {
   let state;
@@ -15,6 +15,26 @@ test('all four positions must be held in order before recording is ready',()=>{
   assert.equal(hold(guide,pose(-25),2600,600).stage,'steady');
   assert.equal(hold(guide,pose(),3300,1900).done,false);
   assert.equal(guide.update(pose(),5300).done,true);
+});
+test('small turns work relative to the averaged neutral pose, not a large absolute angle',()=>{
+  const guide=new PoseGuide();
+  hold(guide,pose(-7),0,700);
+  assert.equal(guide.neutralYaw,-7);
+  assert.equal(hold(guide,pose(-7),800,700).stage,'left');
+  assert.equal(hold(guide,pose(-17),1600,700).stage,'left');
+  assert.equal(hold(guide,pose(3),2400,600).stage,'right');
+  assert.equal(hold(guide,pose(-17),3100,600).stage,'steady');
+  assert.equal(hold(guide,pose(-7),3800,2000).done,true);
+});
+test('turn cue matches the mirrored preview and disappears at center',()=>{
+  assert.equal(turnDirection('left'),'left');assert.equal(turnDirection('right'),'right');
+  assert.equal(turnDirection('front'),null);assert.equal(turnDirection('steady'),null);
+  const guide=new PoseGuide();hold(guide,pose(5),0,700);
+  assert.equal(hold(guide,pose(45),800,600).stage,'left');
+  assert.equal(hold(guide,pose(15),1500,600).stage,'right');
+  guide.update({valid:false,reason:'missing'},2200);
+  guide.update({valid:false,reason:'missing'},3800);
+  assert.equal(guide.neutralYaw,null);assert.equal(guide.step,0);
 });
 test('recording monitor uses real face/exposure data and gives time to recover',()=>{
   assert.equal(recordingIssue(pose(0,{brightness:120})),null);
