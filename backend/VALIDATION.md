@@ -1,7 +1,7 @@
 # Resultado de implementación — 2026-09-30
 
 Implementación activa en https://selfie.proxant.ai/ mediante el release
-`/opt/onescan/releases/20260930-gentle-turn-v1`.
+`/opt/onescan/releases/20261001-camera-cues-v1`.
 
 ## Verificado
 
@@ -167,3 +167,34 @@ una postura neutral de -4 y giros de +12/-12 respecto a ella completaron la
 preparación e iniciaron la grabación; se comprobó visualmente la flecha junto al
 ejemplo. Los mocks siguen fuera del repositorio y del release. Esta corrección
 aún requiere confirmar la comodidad con la cámara física del usuario.
+
+## Flechas sobre cámara y dirección corregida — 1 octubre 2026
+
+Se corrigió la inversión del signo de yaw: el cálculo anterior usaba la
+diferencia de profundidad de ojos en el sentido opuesto al de la nariz en
+la vista espejo. La convención de profundidad se verificó en la
+[documentación oficial de MediaPipe](https://developers.google.com/edge/api/mediapipe/java/com/google/mediapipe/tasks/components/containers/NormalizedLandmark).
+La regresión rota/proyecta una cara 3D virtual y comprueba que el sentido de
+la nariz en espejo coincide con el paso que acepta el detector y su flecha;
+no asigna un resultado de yaw para dar por correcta la fórmula.
+
+La flecha ahora está dentro del recuadro de cámara. Se reemplazó la barra fina
+de permanencia por un anillo de 6 px sobre el óvalo, un aviso verde/check de
+0.9 s, checks en cada paso y una etiqueta persistente del último paso
+completado dentro de la cámara. La captura espera la confirmación final y
+solo arranca si sigue recibiendo cuadros válidos/frescos; pérdida de rostro,
+cancelación o pestaña oculta cancelan ese arranque pendiente.
+
+19 pruebas JavaScript pasan, incluidos orientación por proyección 3D,
+confirmación visible/persistente y arranque diferido válido, con rostro perdido,
+cancelado, oculto y con cuadros obsoletos. Los controles fisiológicos y la API
+no cambiaron. Falta confirmar la dirección y percepción con la cámara física
+del usuario; la comprobación del navegador usa poses sintéticas.
+
+En el harness del navegador se comprobó que un giro opuesto no avanza, que
+las flechas izquierda/derecha están dentro de `.camera-view`, que los giros
+indicados completan sus pasos y que los avisos de cada paso duran unos 1.0 s
+con el muestreo de 8 FPS. La etiqueta `✓ Giro 1 completado` permaneció visible
+durante Giro 2, y `✓ Giro 2 completado` durante el regreso al centro.
+La grabación comenzó 907 ms después de `Centro listo`, duró aproximadamente
+20.2 s y emitió una sola solicitud de análisis al backend simulado del harness.

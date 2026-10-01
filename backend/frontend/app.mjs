@@ -1,6 +1,6 @@
 import {TARGET_SECONDS, STOP_SECONDS, MIN_SECONDS, MAX_BYTES, acceptedResults, rejection, chooseMime, canAnalyzeCapture, waveformPath, diagnostics} from './core.mjs';
 import {CameraGuide} from './guide-camera.mjs';
-import {RecordingMonitor,turnDirection} from './pose.mjs';
+import {RecordingMonitor,turnDirection,GuideFeedback,GUIDE_STEPS} from './pose.mjs';
 const $ = selector => document.querySelector(selector);
 const screens = [...document.querySelectorAll('.screen')];
 const icons = name => `<svg aria-hidden="true"><use href="#icon-${name}"/></svg>`;
@@ -13,6 +13,7 @@ let started = 0, elapsed = 0, tick = null, lastLighting = 0, pendingId = null, l
 let stoppedForSize = false, toastTimer, lightingSamples = 0, faceGuide = null, cameraAttempt = 0, captureAborted = false, recordingDuration = TARGET_SECONDS, retryData = null;
 const lightCanvas = document.createElement('canvas'); lightCanvas.width = lightCanvas.height = 48;
 const lightContext = lightCanvas.getContext('2d', {willReadFrequently:true});
+const guideFeedback=new GuideFeedback();
 function frameHeight() { send('streamlit:setFrameHeight', {height:Math.ceil(document.documentElement.scrollHeight)}); }
 new ResizeObserver(frameHeight).observe(document.body);
 function show(next) {
@@ -118,20 +119,35 @@ function checkLight(now) {
 }
 function guideState(state) {
   showExposure(state.brightness);
+  const feedback=guideFeedback.update(state,performance.now()),labels=['Frente','Giro 1','Giro 2','Centro'];
   const titles={front:'Mira al frente',left:'Gira un poquito',right:'Ahora al otro lado',steady:'Vuelve al centro'};
   const hints={missing:'Coloca tu rostro dentro del óvalo',multiple:'Debe aparecer solo tu rostro',closer:'Acércate un poco',farther:'Aléjate un poco',center:'Centra tu rostro en el óvalo',level:'Mantén la cabeza a la altura de tus ojos',light:'Busca luz uniforme frente a ti',turn:state.stage==='steady'?'Mira al frente para comenzar':state.stage==='front'?'Mira a la cámara':'Sigue la flecha. Solo necesitas un giro pequeño',hold:state.stage==='steady'?'Mantente quieto. La captura comenzará sola':'Así está bien. Mantén un momento',ready:'Listo. Comenzamos la captura'};
-  $('#capture-title').textContent=titles[state.stage];$('#capture-hint').textContent=hints[state.reason] || 'Sigue la guía';
-  const direction=turnDirection(state.stage),side=Boolean(direction),example=$('#guide-example');
-  example.src=side?'guide-turn.svg':'advice-still.svg';example.classList.toggle('mirror',state.stage==='left');
+  const displayStage=feedback.confirming?GUIDE_STEPS[feedback.completedStep]:state.stage;
+  const direction=turnDirection(displayStage),side=Boolean(direction),example=$('#guide-example');
+  example.src=side?'guide-turn.svg':'advice-still.svg';example.classList.toggle('mirror',displayStage==='left');
   example.alt=side?'Ejemplo del giro que debes imitar':'Ejemplo del rostro al frente';
-  $('#guide-example-label').textContent=side?'Un poco hacia este lado':'Mira al frente';
-  const cue=$('#turn-cue');cue.hidden=!side;cue.classList.toggle('left',direction==='left');
+  $('#guide-example-label').textContent=feedback.confirming?'Posición completada':side?'Un poco hacia este lado':'Mira al frente';
+  const cue=$('#turn-cue');cue.hidden=!side || feedback.confirming;cue.classList.toggle('left',direction==='left');
   cue.setAttribute('aria-label',direction==='left'?'Gira hacia la izquierda de la pantalla':'Gira hacia la derecha de la pantalla');
-  $('.face-oval').classList.toggle('detected',state.reason==='hold' || state.done);
-  for(const [i,item] of [...document.querySelectorAll('.guide-progress span')].entries()) {
+  $('.face-oval').classList.toggle('detected',state.reason==='hold' || feedback.confirming);
+  $('#guide-ring').style.strokeDashoffset=100*(1-feedback.progress);
+  const notice=$('#guide-notice');notice.hidden=false;notice.classList.toggle('confirmed',feedback.confirming);
+  $('#guide-check').hidden=!feedback.confirming;
+  const noticeText=feedback.confirming?`${labels[feedback.completedStep]} listo`:state.reason==='hold'?'Mantén la posición':`Paso ${state.step+1} de 4 · ${labels[state.step]}`;
+  if($('#guide-notice-text').textContent!==noticeText)$('#guide-notice-text').textContent=noticeText;
+  const completedBadge=$('#guide-completed');completedBadge.hidden=feedback.lastCompleted<0;
+  const completedText=feedback.lastCompleted<0?'':state.done?'✓ Preparación lista':`✓ ${labels[feedback.lastCompleted]} completado`;
+  if(completedBadge.textContent!==completedText)completedBadge.textContent=completedText;
+  const captureTitle=feedback.confirming?'¡Listo!':titles[state.stage];
+  const captureHint=feedback.confirming?(state.done?'Preparación lista. Comenzamos la captura':'Paso completado. Sigue con la siguiente indicación'):hints[state.reason] || 'Sigue la guía';
+  if($('#capture-title').textContent!==captureTitle)$('#capture-title').textContent=captureTitle;
+  if($('#capture-hint').textContent!==captureHint)$('#capture-hint').textContent=captureHint;
+  for(const [i,item] of [...document.querySelectorAll('.guide-progress > span')].entries()) {
     item.classList.toggle('complete',i<state.step || state.done);item.classList.toggle('active',i===state.step && !state.done);
+    item.querySelector('b').textContent=i<state.step || state.done?'✓':i+1;
+    item.setAttribute('aria-label',`${labels[i]}${i<state.step || state.done?', completado':i===state.step?', actual':', pendiente'}`);
   }
-  $('.guide-progress').setAttribute('aria-valuenow',state.done?4:state.step);$('#hold-progress').style.width=`${state.progress*100}%`;
+  $('.guide-progress').setAttribute('aria-valuenow',state.done?4:state.step);
 }
 function abortCapture(code) {
   captureAborted=true;
@@ -153,11 +169,12 @@ function startRecording() {
   // Guided turns stay outside the video. Reuse the worker at only 2 FPS
   // while recording to catch face/lighting issues without main-thread inference.
   const monitor=new RecordingMonitor();
-  $('#face-guide').hidden=$('#cancel-guide').hidden=true;$('#face-status').hidden=false;
+  $('#face-guide').hidden=$('#cancel-guide').hidden=$('#turn-cue').hidden=$('#guide-notice').hidden=$('#guide-completed').hidden=true;$('#face-status').hidden=false;
   $('#record-timer').hidden=$('#stop').hidden=false;
   $('#capture-title').textContent='Mantente quieto';
   $('#capture-hint').textContent='Mira al frente y evita hablar';
   $('.face-oval').classList.remove('detected');
+  $('#guide-ring').style.strokeDashoffset=100;
   const mime=chooseMime(MediaRecorder);
   recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:4_000_000});
   const activeRecorder=recorder,attempt=cameraAttempt;
@@ -203,7 +220,7 @@ async function startCamera() {
   $('#stop').disabled=true;$('#seconds').textContent='0';$('#timer-ring').style.strokeDashoffset=320.443;
   $('#record-timer').hidden=$('#stop').hidden=true;$('#face-guide').hidden=false;$('#cancel-guide').hidden=false;
   $('#light-status').className='status-pill';$('#light-status span').textContent='Comprobando luz…';
-  guideState({stage:'front',step:0,reason:'waiting',progress:0});
+  guideFeedback.reset();guideState({stage:'front',step:0,reason:'waiting',progress:0});
   recordingDuration=Number($('#capture-duration').value)===30?30:TARGET_SECONDS;
   $('#duration-label').textContent=` / ${recordingDuration} s`;$('#record-timer').setAttribute('aria-valuemax',recordingDuration);
   $('#face-status').hidden=true;$('.face-oval').classList.remove('attention');

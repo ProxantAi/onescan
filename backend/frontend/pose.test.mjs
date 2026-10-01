@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {facePose,PoseGuide,recordingIssue,RecordingMonitor,turnDirection} from './pose.mjs';
+import {facePose,PoseGuide,recordingIssue,RecordingMonitor,turnDirection,GuideFeedback} from './pose.mjs';
 const pose=(yaw=0,extra={})=>({valid:true,centered:true,sized:true,level:true,x:.5,y:.5,height:.6,yaw,...extra});
 function hold(guide,value,start,duration) {
   let state;
@@ -85,10 +85,44 @@ test('landmark geometry uses unmirrored data for a mirrored left/right instructi
   Object.assign(points[33],{x:.35,y:.37,z:.075});Object.assign(points[263],{x:.65,y:.37,z:-.075});
   Object.assign(points[1],{y:.49});
   const result={faceLandmarks:[points]};
-  const left=facePose(result);assert.ok(left.valid && left.centered && left.sized && left.level);
-  assert.ok(left.yaw>18);
-  points[33].z=-.075;points[263].z=.075;assert.ok(facePose(result).yaw < -18);
+  const right=facePose(result);assert.ok(right.valid && right.centered && right.sized && right.level);
+  assert.ok(right.yaw < -18);
+  points[33].z=-.075;points[263].z=.075;assert.ok(facePose(result).yaw >18);
   assert.equal(facePose({faceLandmarks:[points,points]}).reason,'multiple');
   assert.equal(facePose({faceLandmarks:[]}).valid,false);
   points[1].x=NaN;assert.equal(facePose(result).valid,false);
+});
+test('projected 3D head rotation agrees with the nose direction on the mirrored screen',()=>{
+  // Rotate a virtual face with its nose closer to the camera than its eyes.
+  // This independently checks projection + depth sign, rather than assigning
+  // z values according to the yaw formula being tested.
+  for(const angle of [-18,18]) {
+    const a=angle*Math.PI/180;
+    const project=(x,y,z)=>({x:.5+x*Math.cos(a)+z*Math.sin(a),y,z:-x*Math.sin(a)+z*Math.cos(a)});
+    const points=Array.from({length:478},()=>({x:.5,y:.5,z:0}));
+    points[33]=project(-.15,.37,-.03);points[263]=project(.15,.37,-.03);
+    points[1]=project(0,.49,-.12);points[10]=project(0,.15,0);points[152]=project(0,.75,0);
+    points[234]=project(-.23,.45,0);points[454]=project(.23,.45,0);
+    const value=facePose({faceLandmarks:[points]});
+    const mirroredNoseOffset=-(points[1].x-(points[33].x+points[263].x)/2);
+    const direction=mirroredNoseOffset<0?'left':'right';
+    assert.equal(value.yaw>0?'left':'right',direction);
+    const guide=new PoseGuide();hold(guide,pose(),0,700);
+    if(direction==='right')hold(guide,pose(18),800,600);
+    assert.equal(turnDirection(guide.state('turn').stage),direction);
+    assert.equal(hold(guide,value,1500,600).step,direction==='left'?2:3);
+  }
+});
+test('step confirmation stays visible for 900 ms and completed checks survive the next step',()=>{
+  const view=new GuideFeedback();
+  assert.equal(view.update({step:0,progress:.5},0).confirming,false);
+  let result=view.update({step:1,progress:0},700);
+  assert.equal(result.completedStep,0);assert.equal(result.progress,1);
+  assert.equal(view.update({step:1,progress:0},1500).confirming,true);
+  result=view.update({step:1,progress:.5},1600);
+  assert.equal(result.confirming,false);assert.equal(result.lastCompleted,0);
+  assert.equal(view.update({step:2,progress:0},1900).completedStep,1);
+  assert.equal(view.update({step:0,progress:0},2100).confirming,false);
+  assert.equal(view.update({step:3,done:true,progress:1},3000).completedStep,3);
+  assert.equal(view.update({step:3,done:true,progress:1},5000).confirming,true);
 });

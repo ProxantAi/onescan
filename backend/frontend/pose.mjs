@@ -11,9 +11,10 @@ export function facePose(result) {
   const x = (leftCheek.x+rightCheek.x)/2, y = (top.y+chin.y)/2;
   const eyeWidth = rightEye.x-leftEye.x;
   if (eyeWidth <= .025 || height <= 0) return {valid:false,reason:'missing'};
-  // Normalized landmark z uses the same scale as x. Positive yaw means the
-  // person's left, shown by a matching profile in the mirrored preview.
-  const yaw = degrees(Math.atan2(leftEye.z-rightEye.z,eyeWidth));
+  // MediaPipe z grows away from the camera. With unmirrored input, an eye
+  // closer to the camera has a smaller z. Correct the sign so positive yaw
+  // turns the nose left in the mirrored preview, matching the LEFT cue.
+  const yaw = degrees(Math.atan2(rightEye.z-leftEye.z,eyeWidth));
   const roll = degrees(Math.atan2(rightEye.y-leftEye.y,eyeWidth));
   const eyeY = (leftEye.y+rightEye.y)/2;
   const nosePosition = (nose.y-eyeY)/(chin.y-eyeY);
@@ -28,6 +29,18 @@ export const GUIDE_STEPS = ['front','left','right','steady'];
 export const TURN_MIN = 10, TURN_MAX = 32;
 export function turnDirection(stage) {
   return stage==='left'?'left':stage==='right'?'right':null;
+}
+export class GuideFeedback {
+  constructor() {this.reset();}
+  reset() {this.lastStep=0;this.completed=-1;this.until=0;}
+  update(state,now) {
+    if(state.step<this.lastStep)this.reset();
+    const completed=state.done?3:state.step>this.lastStep?state.step-1:null;
+    if(completed!==null && completed!==this.completed) {this.completed=completed;this.until=now+900;}
+    this.lastStep=state.step;
+    const confirming=Boolean(state.done || now<this.until);
+    return {confirming,completedStep:confirming?this.completed:null,lastCompleted:this.completed,progress:confirming?1:state.progress};
+  }
 }
 export class PoseGuide {
   constructor() {this.reset();}

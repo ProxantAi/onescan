@@ -21,12 +21,23 @@ export class CameraGuide {
         this.timer=setInterval(()=>this.sample(),125);
       } else if(data.type==='pose') {
         this.inFlight=false;clearTimeout(this.watchdog);
-        if(document.hidden) {this.guide.reset();return;}
+        if(document.hidden) {this.guide.reset();clearTimeout(this.readyTimer);this.readyTimer=null;return;}
         const pose=facePose(data.result);
         if(this.monitoring) {this.onMonitor(pose,data.timestamp);return;}
         const state=this.guide.update(pose,data.timestamp);
         this.onState({...state,brightness:pose.brightness});
-        if(state.done) {clearInterval(this.timer);this.timer=null;this.onReady();}
+        // Keep the final confirmation visible. Continue checking fresh frames
+        // during the delay; losing readiness cancels the pending start.
+        if(state.done)this.readyPoseAt=data.timestamp;
+        if(state.done && !this.readyTimer) {
+          this.readyTimer=setTimeout(()=>{
+            this.readyTimer=null;
+            if(this.closed)return;
+            if(document.hidden) {this.guide.reset();return;}
+            if(performance.now()-this.readyPoseAt>600) {this.guide.since=null;this.guide.anchor=null;return;}
+            clearInterval(this.timer);this.timer=null;this.onReady();
+          },900);
+        } else if(!state.done && this.readyTimer) {clearTimeout(this.readyTimer);this.readyTimer=null;}
       } else if(data.type==='error') this.fail();
     };
     this.worker.postMessage({type:'init'});
@@ -58,7 +69,7 @@ export class CameraGuide {
     this.close();this.onError(code);
   }
   close() {
-    this.closed=true;clearInterval(this.timer);clearTimeout(this.timeout);clearTimeout(this.watchdog);
+    this.closed=true;clearInterval(this.timer);clearTimeout(this.timeout);clearTimeout(this.watchdog);clearTimeout(this.readyTimer);this.readyTimer=null;
     this.worker?.terminate();this.worker=null;
     this.canvas.width=this.canvas.height=0;
   }
