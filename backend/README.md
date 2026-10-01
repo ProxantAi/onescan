@@ -43,12 +43,21 @@ La UI autenticada sirve un componente estático propio desde `frontend/`. Sigue
 el diseño aprobado: preparación con consejos, cámara con guía ovalada y contador
 circular, y recuperación ilustrada. La cámara se solicita únicamente al pulsar
 «Estoy listo». Pide 1280×720 a 30 FPS (según lo que soporte el dispositivo), muestra
-el video local sin el recorrido de ida y vuelta por WebRTC, y graba 30 segundos
-con MediaRecorder. Puede detenerse antes, pero menos de 20 segundos no se analiza.
+el video local sin el recorrido de ida y vuelta por WebRTC. MediaPipe prepara la
+toma con una secuencia de frente, izquierda, derecha y regreso al centro. Cada
+posición debe mantenerse y el regreso requiere dos segundos de estabilidad.
+La detección corre en un worker del navegador, a un máximo de 8 cuadros por
+segundo, sobre la misma región visible de la cámara. Los cuadros de la guía no
+se envían al servidor ni se incluyen en la grabación. El worker se termina antes
+de comenzar los 30 segundos con MediaRecorder. Puede detenerse antes, pero menos
+de 20 segundos no se analiza. Si no puede cargar la guía, muestra un error y
+permite reintentar o subir un video; no afirma que la comprobación pasó.
 La toma se envía al terminar, sin un segundo botón de «analizar».
 
-El indicador de luz usa exposición de la imagen central; no afirma detección de
-rostro ni calidad de pulso antes del análisis. La respuesta del backend determina
+La guía comprueba geometría y seguimiento del rostro, no identidad ni protección
+contra fotos o videos. Los umbrales de orientación son operacionales y requieren
+validación con usuarios. El indicador de luz usa exposición de la imagen central;
+no afirma calidad de pulso antes del análisis. La respuesta del backend determina
 el rechazo y los consejos. Un método aceptado puede mostrarse aunque el otro se
 rechace; las métricas rechazadas siempre se ocultan. El menú permite cambiar
 métodos, aportar una referencia simultánea, subir videos y cerrar la sesión OIDC.
@@ -58,6 +67,7 @@ backend privado. `ui_bridge.py` limita el tamaño a 50 MB, valida Base64, format
 método y referencia. La UI deduplica el evento y libera el payload al recibir el
 resultado. No se guardan videos ni resultados personales de manera persistente.
 Requiere un navegador con `getUserMedia` y MediaRecorder (Safari/Chrome modernos).
+La guía también requiere Web Workers, ImageBitmap y OffscreenCanvas.
 `capture.py` conserva el capturador anterior para compatibilidad, pero la interfaz
 nueva ya no usa WebRTC ni reduce la grabación a 320 píxeles. Ambos motores siguen
 recibiendo el mismo video normalizado a un máximo de 640 píxeles.
@@ -66,7 +76,7 @@ recibiendo el mismo video normalizado a un máximo de 640 píxeles.
 
 ```bash
 PYTHONPATH=. .venv/bin/python -m pytest tests -q
-node --test frontend/core.test.mjs
+node --test frontend/*.test.mjs
 ```
 
 Las pruebas de la interfaz requieren `requirements-ui.txt`; el resto corre con
@@ -92,6 +102,15 @@ Que los motores coincidan no demuestra precisión. Antes de escoger uno deben
 compararse condiciones de luz, movimiento, teléfonos y personas diferentes.
 
 ## Despliegue en selfie
+
+Antes de servir la UI ejecuta `python3 install-face-guide.py`. Descarga
+`@mediapipe/tasks-vision@1.0.1` y Face Landmarker float16 versión 1 desde sus
+fuentes oficiales, verifica SHA-256 y coloca el runtime/modelo en
+`frontend/vendor/mediapipe/` (ignorado por Git). Incluye ese directorio en cada
+release: todos los assets se sirven desde Selfie, sin CDN ni envío de imágenes
+a Google. `MANIFEST.json` contiene los hashes de cada archivo. El paquete declara
+licencia Apache-2.0; consulta [la guía y tarjetas de los modelos](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker#models)
+para la procedencia y limitaciones de los modelos.
 
 `deploy/onescan-open-api.service` usa el entorno aislado del servidor y
 `/opt/onescan/current/backend`. El drop-in `deploy/rppg-ui-override.conf` cambia

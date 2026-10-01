@@ -2,6 +2,8 @@ export const TARGET_SECONDS = 30;
 export const MIN_SECONDS = 20;
 export const MAX_BYTES = 50 * 1024 * 1024;
 export const REASONS = {
+  face_guide_unavailable: ['No pudimos iniciar la guía del rostro.', 'Actualiza Safari o Chrome y vuelve a intentar.', 'También puedes subir un video desde el menú.'],
+  face_guide_timeout: ['No pudimos completar los movimientos.', 'Gira suavemente siguiendo las flechas.', 'Vuelve al centro y mantente quieto.'],
   no_face: ['No pudimos ver tu rostro durante toda la toma.', 'Coloca el teléfono a la altura de tus ojos.', 'Mantén tu rostro dentro del óvalo.'],
   multiple_faces: ['Apareció más de un rostro.', 'Graba sin otras personas en cámara.', 'Mantén tu rostro centrado.'],
   poor_lighting: ['Necesitamos más luz sobre tu rostro.', 'Busca una luz uniforme frente a ti.', 'Evita ventanas detrás de ti.'],

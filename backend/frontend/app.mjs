@@ -1,4 +1,5 @@
 import {TARGET_SECONDS, MIN_SECONDS, MAX_BYTES, acceptedResults, rejection, chooseMime, canAnalyzeCapture, waveformPath} from './core.mjs';
+import {CameraGuide} from './guide-camera.mjs';
 const $ = selector => document.querySelector(selector);
 const screens = [...document.querySelectorAll('.screen')];
 const icons = name => `<svg aria-hidden="true"><use href="#icon-${name}"/></svg>`;
@@ -8,7 +9,7 @@ const emit = value => send('streamlit:setComponentValue', {value, dataType:'json
 const freshId = () => crypto.randomUUID();
 let args = {ready:false}, screen = 'prepare', stream = null, recorder = null, chunks = [], bytes = 0;
 let started = 0, elapsed = 0, tick = null, lastLighting = 0, pendingId = null, lastResponse = null, busy = false;
-let stoppedForSize = false, toastTimer, lightingSamples = 0;
+let stoppedForSize = false, toastTimer, lightingSamples = 0, faceGuide = null, cameraAttempt = 0, captureAborted = false;
 const lightCanvas = document.createElement('canvas'); lightCanvas.width = lightCanvas.height = 48;
 const lightContext = lightCanvas.getContext('2d', {willReadFrequently:true});
 function frameHeight() { send('streamlit:setFrameHeight', {height:Math.ceil(document.documentElement.scrollHeight)}); }
@@ -26,6 +27,7 @@ function show(next) {
 }
 function toast(message) { $('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => {$('#toast').hidden = true;}, 4500); }
 function releaseCamera() {
+  cameraAttempt++;faceGuide?.close();faceGuide=null;
   if (tick) {clearInterval(tick); tick = null;}
   stream?.getTracks().forEach(track => track.stop()); stream = null;
   $('#camera').srcObject = null;
@@ -103,61 +105,114 @@ function checkLight(now) {
     $('#light-status span').textContent = good ? 'Luz adecuada' : light < 40 ? 'Busca más luz' : 'Evita luz directa';
   } catch { $('#light-status span').textContent = 'Mantén una luz uniforme'; }
 }
+function guideState(state) {
+  const titles={front:'Mira al frente',left:'Gira a tu izquierda',right:'Gira a tu derecha',steady:'Vuelve al centro'};
+  const hints={missing:'Coloca tu rostro dentro del óvalo',multiple:'Debe aparecer solo tu rostro',closer:'Acércate un poco',farther:'Aléjate un poco',center:'Centra tu rostro en el óvalo',level:'Mantén la cabeza a la altura de tus ojos',turn:state.stage==='steady'?'Mira al frente para comenzar':state.stage==='front'?'Mira a la cámara':'Gira suavemente, sin mover el teléfono',hold:state.stage==='steady'?'Mantente quieto. La captura comenzará sola':'Mantén esta posición un momento',ready:'Listo. Comenzamos la captura'};
+  $('#capture-title').textContent=titles[state.stage];
+  $('#capture-hint').textContent=hints[state.reason] || 'Sigue la guía';
+  const arrow=$('#turn-arrow');arrow.hidden=!['left','right'].includes(state.stage);
+  arrow.textContent=state.stage==='left'?'←':'→';arrow.classList.toggle('right',state.stage==='right');
+  $('.face-oval').classList.toggle('detected',state.reason==='hold' || state.done);
+  for(const [i,item] of [...document.querySelectorAll('.guide-progress span')].entries()) {
+    item.classList.toggle('complete',i<state.step || state.done);item.classList.toggle('active',i===state.step && !state.done);
+  }
+  $('.guide-progress').setAttribute('aria-valuenow',state.done?4:state.step);
+  $('#hold-progress').style.width=`${state.progress*100}%`;
+}
+function startRecording() {
+  if(!stream?.active)throw new Error('La cámara dejó de estar disponible.');
+  // End the detection worker before recording so its CPU work and the guided
+  // movements cannot affect the 30-second pulse video.
+  faceGuide?.close();faceGuide=null;
+  $('#face-guide').hidden=$('#turn-arrow').hidden=$('#cancel-guide').hidden=true;
+  $('#record-timer').hidden=$('#stop').hidden=false;
+  $('#capture-title').textContent='Mantente quieto';
+  $('#capture-hint').textContent='Mira al frente y evita hablar';
+  $('.face-oval').classList.remove('detected');
+  const mime=chooseMime(MediaRecorder);
+  recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:4_000_000});
+  const activeRecorder=recorder;
+  recorder.addEventListener('dataavailable',event=>{
+    if(captureAborted)return;
+    if(event.data.size){chunks.push(event.data);bytes+=event.data.size;}
+    if(bytes>MAX_BYTES && activeRecorder.state==='recording'){stoppedForSize=true;activeRecorder.stop();}
+  });
+  recorder.addEventListener('error',()=>{
+    captureAborted=true;chunks=[];bytes=0;
+    if(activeRecorder.state==='recording')activeRecorder.stop();
+    retry({error:{code:'invalid_video',message:'La cámara no pudo completar la grabación.'}});
+  });
+  recorder.addEventListener('stop',async()=>{
+    if(captureAborted)return;
+    const duration=(performance.now()-started)/1000;
+    releaseCamera();
+    if(stoppedForSize || !canAnalyzeCapture(duration,bytes)) {
+      chunks=[];busy=false;
+      retry({error:{code:stoppedForSize?'invalid_video':'video_too_short',message:stoppedForSize?'La grabación superó 50 MB.':`Grabaste ${Math.floor(duration)} segundos. Necesitamos al menos ${MIN_SECONDS}.`}});return;
+    }
+    const blob=new Blob(chunks,{type:activeRecorder.mimeType || mime || 'video/webm'});chunks=[];
+    await submit(blob,blob.type);
+  },{once:true});
+  recorder.start(500);started=performance.now();elapsed=0;
+  $('#stop').disabled=false;
+  tick=setInterval(()=>{
+    elapsed=(performance.now()-started)/1000;
+    $('#seconds').textContent=Math.min(TARGET_SECONDS,Math.floor(elapsed));
+    $('.timer').setAttribute('aria-valuenow',Math.min(TARGET_SECONDS,Math.floor(elapsed)));
+    $('#timer-ring').style.strokeDashoffset=320.443*(1-Math.min(elapsed/TARGET_SECONDS,1));
+    checkLight(performance.now());
+    if(elapsed>=TARGET_SECONDS && activeRecorder.state==='recording'){$('#stop').disabled=true;activeRecorder.stop();}
+  },100);
+}
 async function startCamera() {
-  if (busy) return;
-  if (!args.ready) {toast('El análisis se está iniciando. Intenta de nuevo en unos momentos.'); return;}
-  busy = true; show('record'); $('#camera-loading').hidden = false;
-  $('#stop').disabled = true; $('#seconds').textContent = '0'; $('#timer-ring').style.strokeDashoffset = 320.443;
-  $('#light-status').className = 'status-pill'; $('#light-status span').textContent = 'Comprobando luz…';
-  chunks = []; bytes = 0; stoppedForSize = false; lightingSamples = 0;
+  if(busy)return;
+  if(!args.ready){toast('El análisis se está iniciando. Intenta de nuevo en unos momentos.');return;}
+  busy=true;show('record');$('#camera-loading').hidden=false;
+  $('#camera-loading').textContent='Encendiendo tu cámara…';
+  $('#stop').disabled=true;$('#seconds').textContent='0';$('#timer-ring').style.strokeDashoffset=320.443;
+  $('#record-timer').hidden=$('#stop').hidden=true;$('#face-guide').hidden=false;$('#cancel-guide').hidden=false;
+  $('#light-status').className='status-pill';$('#light-status span').textContent='Comprobando luz…';
+  guideState({stage:'front',step:0,reason:'waiting',progress:0});
+  chunks=[];bytes=0;stoppedForSize=false;captureAborted=false;lightingSamples=0;recorder=null;
+  const attempt=++cameraAttempt;
   try {
     options();
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw Object.assign(new Error('Este navegador no permite grabar video. Usa Safari o Chrome actualizado, o sube un video.'), {name:'UnsupportedCamera'});
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}},audio:false});
-    const video = $('#camera');
-    video.srcObject = stream;
-    const playing = new Promise((resolve,reject) => {
-      const timeout = setTimeout(() => reject(new Error('No se pudo iniciar la cámara.')),12000);
-      video.addEventListener('loadeddata', () => {clearTimeout(timeout); resolve();}, {once:true});
+    if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder)throw Object.assign(new Error('Este navegador no permite grabar video. Usa Safari o Chrome actualizado, o sube un video.'),{name:'UnsupportedCamera'});
+    const acquired=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}},audio:false});
+    if(attempt!==cameraAttempt){acquired.getTracks().forEach(track=>track.stop());return;}
+    stream=acquired;
+    const video=$('#camera');
+    const playing=new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>reject(new Error('No se pudo iniciar la cámara.')),12000);
+      video.addEventListener('loadeddata',()=>{clearTimeout(timeout);resolve();},{once:true});
     });
-    await video.play(); await playing;
-    $('#camera-loading').hidden = true;
-    const mime = chooseMime(MediaRecorder);
-    recorder = new MediaRecorder(stream, {...(mime ? {mimeType:mime} : {}), videoBitsPerSecond:4_000_000});
-    recorder.addEventListener('dataavailable', event => {
-      if (event.data.size) {chunks.push(event.data); bytes += event.data.size;}
-      if (bytes > MAX_BYTES && recorder.state === 'recording') {stoppedForSize = true; recorder.stop();}
+    video.srcObject=stream;
+    await Promise.all([video.play(),playing]);
+    if(attempt!==cameraAttempt)return;
+    $('#camera-loading').textContent='Preparando la guía…';
+    tick=setInterval(()=>checkLight(performance.now()),250);
+    faceGuide=new CameraGuide(video,{
+      onState:state=>{$('#camera-loading').hidden=true;guideState(state);},
+      onReady:()=>{
+        if(attempt!==cameraAttempt)return;
+        clearInterval(tick);tick=null;
+        try{startRecording();}catch{retry({error:{code:'invalid_video',message:'No se pudo iniciar la grabación. Intenta de nuevo.'}});}
+      },
+      onError:code=>{if(attempt===cameraAttempt)retry({error:{code}});},
     });
-    recorder.addEventListener('error', () => {
-      chunks=[]; bytes=0; retry({error:{code:'invalid_video',message:'La cámara no pudo completar la grabación.'}});
+    faceGuide.start();
+    stream.getVideoTracks()[0].addEventListener('ended',()=>{
+      if(attempt!==cameraAttempt)return;
+      if(recorder?.state==='recording')recorder.stop();
+      else retry({error:{code:'camera_missing'}});
     });
-    recorder.addEventListener('stop', async () => {
-      const duration = elapsed;
-      releaseCamera();
-      if (stoppedForSize || !canAnalyzeCapture(duration,bytes)) {
-        chunks=[]; busy=false;
-        retry({error:{code:stoppedForSize?'invalid_video':'video_too_short',message:stoppedForSize?'La grabación superó 50 MB.':`Grabaste ${Math.floor(duration)} segundos. Necesitamos al menos ${MIN_SECONDS}.`}}); return;
-      }
-      const blob = new Blob(chunks,{type:recorder.mimeType || mime || 'video/webm'}); chunks=[];
-      await submit(blob,blob.type);
-    }, {once:true});
-    recorder.start(500); started=performance.now(); elapsed=0;
-    $('#stop').disabled=false;
-    tick=setInterval(() => {
-      elapsed=(performance.now()-started)/1000;
-      $('#seconds').textContent=Math.min(TARGET_SECONDS,Math.floor(elapsed));
-      $('.timer').setAttribute('aria-valuenow',Math.min(TARGET_SECONDS,Math.floor(elapsed)));
-      $('#timer-ring').style.strokeDashoffset=320.443*(1-Math.min(elapsed/TARGET_SECONDS,1));
-      checkLight(performance.now());
-      if (elapsed >= TARGET_SECONDS && recorder.state==='recording') {$('#stop').disabled=true;recorder.stop();}
-    },100);
-    stream.getVideoTracks()[0].addEventListener('ended', () => {if(recorder?.state==='recording') recorder.stop();});
   } catch(error) {
-    busy=false;releaseCamera();
-    const code=['NotAllowedError','SecurityError'].includes(error.name) ? 'camera_denied' : ['NotFoundError','NotReadableError'].includes(error.name) ? 'camera_missing' : 'invalid_video';
-    retry({error:{code,...(code==='invalid_video'?{message:error.name==='UnsupportedCamera' ? error.message : 'No se pudo iniciar la cámara. Intenta de nuevo o sube un video.'}: {})}});
+    if(attempt!==cameraAttempt)return;
+    const code=['NotAllowedError','SecurityError'].includes(error.name)?'camera_denied':['NotFoundError','NotReadableError'].includes(error.name)?'camera_missing':'invalid_video';
+    retry({error:{code,...(code==='invalid_video'?{message:error.name==='UnsupportedCamera'?error.message:'No se pudo iniciar la cámara. Intenta de nuevo o sube un video.'}:{})}});
   }
 }
+$('#cancel-guide').addEventListener('click',()=>{busy=false;reset();});
 $('#start').addEventListener('click',startCamera);
 $('#stop').addEventListener('click',() => {if(recorder?.state==='recording') {elapsed=(performance.now()-started)/1000;$('#stop').disabled=true;recorder.stop();}});
 for (const id of ['retry-start','new-capture']) $('#'+id).addEventListener('click',reset);
@@ -200,5 +255,5 @@ window.addEventListener('message',event => {
   }
   frameHeight();
 });
-window.addEventListener('pagehide',releaseCamera);
+window.addEventListener('pagehide',()=>{captureAborted=true;if(recorder?.state==='recording')recorder.stop();releaseCamera();});
 send('streamlit:componentReady',{apiVersion:1});frameHeight();

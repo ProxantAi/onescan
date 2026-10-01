@@ -1,7 +1,7 @@
 # Resultado de implementación — 2026-09-30
 
 Implementación activa en https://selfie.proxant.ai/ mediante el release
-`/opt/onescan/releases/20260930-open-source-v2`.
+`/opt/onescan/releases/20260930-face-guide-v1`.
 
 ## Verificado
 
@@ -85,3 +85,28 @@ fuera del repositorio y del release desplegado.
 Esto verifica transporte y comportamiento de interfaz. No establece precisión
 con personas ni garantiza 720p/30 FPS en todos los dispositivos. Sigue pendiente
 la validación con videos humanos y referencias simultáneas.
+
+## Guía de movimientos — 30 septiembre 2026
+
+Se añadió una preparación con detección real de MediaPipe: frente, izquierda,
+derecha y regreso al centro con dos segundos de estabilidad. Los giros no se
+graban ni se envían al backend; el worker se termina antes de iniciar el video
+de pulso. Una posición incorrecta, cuadros discontinuos o múltiples rostros no
+completan el paso. La pérdida de rostro durante 1.5 segundos reinicia la guía.
+Los errores de carga/tiempo se muestran explícitamente, y cancelar libera cámara
+y worker sin comenzar una grabación.
+
+Verificación: 32 pruebas Python y 11 JavaScript. MediaPipe 1.0.1 y el modelo
+oficial Face Landmarker float16 v1 se ejecutaron en un worker del navegador
+contra la fotografía pública oficial `mediapipe-assets/portrait.jpg`: detectó
+un rostro, estimó una orientación frontal y devolvió cero rostros con una imagen
+vacía. Los assets se descargan con versiones y SHA-256 fijos y se sirven desde
+Selfie; no se solicita un CDN durante la captura.
+
+En un harness local aislado, con cámara de canvas y respuestas de pose
+sintéticas, se verificó que el worker terminara antes de construir/iniciar
+MediaRecorder, que el video se enviara una sola vez al terminar los 30 segundos
+y que cancelar la guía no iniciara una nueva grabación. El harness no forma
+parte del código ni del release. Estas pruebas validan funcionamiento, no
+resistencia a suplantación ni precisión con movimientos humanos. Sigue
+pendiente probar los giros con cámaras físicas y diferentes dispositivos.
