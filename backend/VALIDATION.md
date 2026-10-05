@@ -1,7 +1,7 @@
 # Resultado de implementación — 2026-09-30
 
 Implementación activa en https://selfie.proxant.ai/ mediante el release
-`/opt/onescan/releases/20261001-camera-cues-v1`.
+`/opt/onescan/releases/20261005-metrics-comparison-v1`.
 
 ## Verificado
 
@@ -198,3 +198,58 @@ con el muestreo de 8 FPS. La etiqueta `✓ Giro 1 completado` permaneció visibl
 durante Giro 2, y `✓ Giro 2 completado` durante el regreso al centro.
 La grabación comenzó 907 ms después de `Centro listo`, duró aproximadamente
 20.2 s y emitió una sola solicitud de análisis al backend simulado del harness.
+
+
+## Métricas y comparación — 5 octubre 2026
+
+Ambos motores conservan pulso, RMSSD, SDNN y pNN50, y añaden ln(RMSSD),
+intervalos de pulso y respiración experimental cuando sus controles propios
+lo permiten. Se procesan señales completas; la gráfica reducida no se usa
+para detectar intervalos. Se conserva PRV como estimación experimental,
+sin equipararla a HRV de ECG. La UI permite comparar o ver cada motor sin
+repetir inferencia, y distingue resultados ausentes de rechazados.
+
+Pasaron 47 pruebas Python locales (incluidas cuatro de Streamlit), 43 de backend
+con el runtime Linux real y 22 JavaScript. Se verificaron selector, rechazo
+parcial, ausencia de métricas y un solo motor en el navegador local. Cambiar
+entre motores no emitió una solicitud de análisis. Los datos del harness son
+sintéticos y permanecen fuera del release.
+
+La integración de 20 y 60 segundos completó FacePhys y EfficientPhys sobre el
+mismo fixture en cada caso. Ambos devolvieron intervalos y ln(RMSSD). En 20 s
+ambos omiten respiración por ventana corta. En 60 s FacePhys omite respiración
+por modulación insuficiente; EfficientPhys estima 12.3 resp/min. El fixture
+no contiene respiración humana: este resultado puede ser un artefacto y
+no establece precisión respiratoria. La prueba unitaria independiente sí
+recupera una modulación conocida de 12 resp/min. Se necesita validación humana
+simultánea antes de atribuir significado fisiológico a esa estimación.
+
+| Duración | FacePhys | EfficientPhys |
+|---|---|---|
+| 20 s | 4.049 s de procesamiento, 22 intervalos | 7.824 s, 23 intervalos |
+| 60 s | 11.973 s, 70 intervalos | 18.825 s, 71 intervalos |
+
+Los tiempos corresponden a una muestra por duración y no son un benchmark.
+La respiración exige 45 s útiles continuos de intervalos, modulación y
+concentración espectral; estos umbrales son operacionales, no clínicos.
+El modo ampliado de 60 s no garantiza obtener todas las métricas.
+
+EfficientPhys agotaba memoria con 1800 cuadros juntos. Se limitó la inferencia
+a lotes alineados a grupos TSM, conservando la estandarización global y el
+cuadro siguiente real para la diferencia temporal. Con los pesos reales y
+30 cuadros repartidos en tres grupos, la diferencia máxima frente a inferencia
+completa fue 3.5763e-7 (tolerancia 1e-5). La integración de 60 s completó
+con esta corrección. No se modificaron pesos ni dependencias del servicio.
+
+Se instalaron dos extensiones reversibles en `/opt/rppg-toolbox`: lotes
+acotados y la opción `include_full_bvp`. Los scripts en `deploy/` comprueban
+bloques conocidos y guardan backups. La API habitual conserva su gráfica
+reducida; OneScan solicita además señal completa filtrada y usa target_fps.
+
+Para revertir este release se cambia `/opt/onescan/current` al release previo
+`20261001-camera-cues-v1` y se reinician `onescan-open-api` y `rppg-ui`.
+Las extensiones del motor original se pueden revertir restaurando
+`api/pipeline/rppg_inference.py.before-onescan-batches`,
+`api/main.py.before-onescan-full-signal` y
+`api/models/schemas.py.before-onescan-full-signal` a sus archivos originales
+y reiniciando `rppg-api`. Las dependencias y credenciales permanecen intactas.

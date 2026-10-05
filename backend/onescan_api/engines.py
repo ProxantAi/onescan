@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 import numpy as np
+from .metrics import analyze_intervals, empty_metrics, lnrmssd
 
 OPEN_MODEL = "FacePhys.rlap"
 LEGACY_URL = os.environ.get("LEGACY_RPPG_URL", "http://127.0.0.1:8000")
@@ -25,7 +26,7 @@ def finite(value):
 def result(engine, model):
     return {"engine": engine, "model_used": model, "accepted": False, "reason": None,
             "heart_rate_bpm": None, "hrv": {}, "quality": {}, "bvp_waveform": [],
-            "processing_seconds": None, "warnings": []}
+            "processing_seconds": None, "warnings": [], **empty_metrics()}
 
 
 def gate(output, quality_ok, causes=None):
@@ -39,7 +40,8 @@ def gate(output, quality_ok, causes=None):
         rejected.append("pulse_out_of_supported_range")
     output["quality"]["rejection_causes"] = rejected
     if not quality_ok or hr is None or not 30 <= hr <= 220:
-        output.update(accepted=False, reason="low_signal_quality", heart_rate_bpm=None, hrv={})
+        output.update(accepted=False, reason="low_signal_quality", heart_rate_bpm=None, hrv={},
+                      bvp_waveform=[], **empty_metrics("signal_rejected"))
     else:
         output.update(accepted=True, heart_rate_bpm=hr)
     return output
@@ -72,12 +74,13 @@ class OpenRppgEngine:
             # variability must not hide an otherwise computable heart rate.
             values = self.model.hr(return_hrv=False) or values
             output["warnings"].append("No se pudo estimar la variabilidad en este escaneo.")
-        signal, _ = self.model.bvp()
+        signal, timestamps = self.model.bvp()
         statistics = dict(self.model.statistic)
         sqi = finite(values.get("SQI"))
         hrv = values.get("hrv") or {}
         output.update(heart_rate_bpm=finite(values.get("hr")),
                       hrv={"rmssd_ms": finite(hrv.get("rmssd")), "sdnn_ms": finite(hrv.get("sdnn")),
+                           "lnrmssd": lnrmssd(hrv.get("rmssd")),
                            "pnn50_percent": finite(100 * float(hrv["pnn50"])) if finite(hrv.get("pnn50")) is not None else None},
                       quality={"sqi": sqi, "minimum_sqi": MIN_SQI, "frame_statistics": statistics},
                       processing_seconds=round(time.perf_counter() - started, 3))
@@ -93,14 +96,18 @@ class OpenRppgEngine:
             causes.append("sqi_below_threshold")
         if missing_fraction > 0.2:
             causes.append("face_tracking_gaps")
-        return gate(output, not causes, causes)
+        gate(output, not causes, causes)
+        if output["accepted"]:
+            output.update(analyze_intervals(signal, timestamps, output["heart_rate_bpm"]))
+        output["processing_seconds"] = round(time.perf_counter() - started, 3)
+        return output
 
 
 def analyze_legacy(path: Path, model: str):
     output = result("rPPG-Toolbox", model)
     started = time.perf_counter()
     with path.open("rb") as video, httpx.Client(timeout=180) as client:
-        response = client.post(f"{LEGACY_URL.rstrip('/')}/analyze", params={"model": model},
+        response = client.post(f"{LEGACY_URL.rstrip('/')}/analyze", params={"model": model, "include_full_bvp": True},
                                files={"video": ("scan.mp4", video, "video/mp4")})
         response.raise_for_status()
         values = response.json()
@@ -112,14 +119,20 @@ def analyze_legacy(path: Path, model: str):
                   hrv={"rmssd_ms": finite(metrics.get("rmssd_ms")), "sdnn_ms": finite(metrics.get("sdnn_ms")),
                        # NeuroKit already returns pNN50 as a percentage;
                        # HeartPy (the open-rppg adapter) returns a fraction.
-                       "pnn50_percent": pnn50},
+                       "pnn50_percent": pnn50, "lnrmssd": lnrmssd(metrics.get("rmssd_ms"))},
                   quality={"snr_db": snr, "minimum_snr_db": MIN_LEGACY_SNR},
                   bvp_waveform=[finite(value) for value in values.get("bvp_waveform", [])],
                   processing_seconds=round(time.perf_counter() - started, 3),
                   warnings=values.get("warnings", []))
     # Deliberately omit the old experimental blood-pressure formula.
     causes = ["snr_not_computable"] if snr is None else ["snr_below_threshold"] if snr < MIN_LEGACY_SNR else []
-    return gate(output, not causes, causes)
+    gate(output, not causes, causes)
+    full_signal = values.get("bvp_full")
+    fps = finite((values.get("video") or {}).get("target_fps"))
+    if output["accepted"] and isinstance(full_signal, list) and fps is not None and fps >= 15:
+        output.update(analyze_intervals(full_signal, np.arange(len(full_signal)) / fps, output["heart_rate_bpm"]))
+    output["processing_seconds"] = round(time.perf_counter() - started, 3)
+    return output
 
 
 def comparison(results, reference_bpm=None):
@@ -128,7 +141,12 @@ def comparison(results, reference_bpm=None):
     if reference_bpm is not None:
         errors = [{"engine": item["engine"], "absolute_error_bpm": round(abs(item["heart_rate_bpm"] - reference_bpm), 3)}
                   for item in accepted]
-    return {"reference_bpm": reference_bpm, "reference_errors": errors,
+    differences = {}
+    if len(accepted) == 2:
+        for key in ("rmssd_ms", "sdnn_ms", "lnrmssd", "pnn50_percent"):
+            pair = [finite(item.get("hrv", {}).get(key)) for item in accepted]
+            differences[key] = round(abs(pair[0] - pair[1]), 4) if all(x is not None for x in pair) else None
+    return {"reference_bpm": reference_bpm, "reference_errors": errors, "hrv_differences": differences,
             "difference_bpm": round(abs(accepted[0]["heart_rate_bpm"] - accepted[1]["heart_rate_bpm"]), 3)
             if len(accepted) == 2 else None,
             "note": "La coincidencia entre motores no demuestra precisión. Usa una medición de referencia simultánea."}

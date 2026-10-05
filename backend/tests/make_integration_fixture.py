@@ -16,6 +16,7 @@ from skimage import data
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--seconds", type=int, choices=(20, 60), default=20)
     args = parser.parse_args()
     image = cv2.resize(data.astronaut(), (320, 320)).astype(np.float32)
     with av.open(str(args.output), "w") as container:
@@ -24,7 +25,7 @@ def main():
         stream.pix_fmt = "yuv420p"
         stream.codec_context.bit_rate = 12_000_000
         stream.codec_context.gop_size = 1
-        for index in range(600):
+        for index in range(args.seconds * 30):
             modulated = image.copy()
             modulated[:, :, 1] += 5 * np.sin(2 * np.pi * 1.2 * index / 30)
             frame = av.VideoFrame.from_ndarray(np.clip(modulated, 0, 255).astype(np.uint8), "rgb24")

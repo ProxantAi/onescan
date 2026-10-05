@@ -1,4 +1,5 @@
 import {TARGET_SECONDS, STOP_SECONDS, MIN_SECONDS, MAX_BYTES, acceptedResults, rejection, chooseMime, canAnalyzeCapture, waveformPath, diagnostics} from './core.mjs';
+import {METRIC_ROWS,modelName,metricValue,qualityLabel,respirationNote,resultViewItems} from './results.mjs';
 import {CameraGuide} from './guide-camera.mjs';
 import {RecordingMonitor,turnDirection,GuideFeedback,GUIDE_STEPS} from './pose.mjs';
 const $ = selector => document.querySelector(selector);
@@ -14,6 +15,7 @@ let stoppedForSize = false, toastTimer, lightingSamples = 0, faceGuide = null, c
 const lightCanvas = document.createElement('canvas'); lightCanvas.width = lightCanvas.height = 48;
 const lightContext = lightCanvas.getContext('2d', {willReadFrequently:true});
 const guideFeedback=new GuideFeedback();
+let resultView='compare';
 function frameHeight() { send('streamlit:setFrameHeight', {height:Math.ceil(document.documentElement.scrollHeight)}); }
 new ResizeObserver(frameHeight).observe(document.body);
 function show(next) {
@@ -59,25 +61,40 @@ function retry(data) {
   $('#retry-summary').innerHTML=(data.results || []).map(item=>`<div class="detail-row"><strong>${escape(item.engine)}</strong><span>${escape(item.reason || 'Sin resultado')}</span></div>`).join('');
   show('retry');
 }
-function renderResults(data) {
-  busy = false; releaseCamera();
-  const accepted = acceptedResults(data);
-  if (!accepted.length) {retry(data); return;}
-  $('#result-cards').innerHTML = accepted.map(item => {
-    const name = item.engine === 'open-rppg' ? 'Open-rppg' : 'Método original';
-    const wave = waveformPath(item.bvp_waveform);
-    return `<article class="result-card"><div class="result-label">${icons('pulse')}${name}</div><div class="pulse-number">${item.heart_rate_bpm.toFixed(0)}<span class="pulse-unit">latidos/min</span></div>${wave ? `<svg class="pulse-wave" viewBox="0 0 300 60" aria-label="Señal de pulso estimada"><path d="${wave}"/></svg>` : ''}<span class="status-pill good">${icons('check')}Señal suficiente para estimar</span></article>`;
+function renderResults(data, preserveView=false) {
+  busy=false;releaseCamera();
+  if(!acceptedResults(data).length){retry(data);return;}
+  const all=data.results || [];
+  if(!preserveView)resultView=all.length>1?'compare':all[0].engine;
+  const visible=resultViewItems(data,resultView);
+  $('#results-intro').textContent=all.length>1?'Una captura, dos formas de analizarla.':'Resultados de tu última captura.';
+  const choices=[['compare','Comparar'],['open-rppg','FacePhys'],['rPPG-Toolbox',modelName(all.find(x=>x.engine==='rPPG-Toolbox') || {engine:'rPPG-Toolbox'})]];
+  $('#result-switch').innerHTML=choices.map(([key,label])=>`<button type="button" data-result-view="${key}" aria-pressed="${key===resultView}" ${key!=='compare' && !all.some(x=>x.engine===key)?'disabled':''}>${escape(label)}</button>`).join('');
+  for(const button of $('#result-switch').querySelectorAll('button'))button.addEventListener('click',()=>{resultView=button.dataset.resultView;renderResults(data,true);});
+  const seconds=data.video?.duration_sec;
+  $('#result-window').textContent=Number.isFinite(seconds)?`${seconds.toFixed(0)} segundos · ${seconds<45?'Ventana corta de variabilidad':'Métricas experimentales'}`:'Métricas experimentales';
+  $('#result-cards').classList.toggle('pair',visible.length>1);
+  $('#result-cards').innerHTML=visible.map(item=>{
+    const name=escape(modelName(item));
+    if(!acceptedResults({results:[item]}).length)return `<article class="result-card rejected"><div class="result-label">${name}</div><h2>Sin resultado</h2><p>${escape(rejection({results:[item]}).message)}</p><span class="status-pill dim">${item.reason==='engine_error'?'Cálculo no disponible':'Señal insuficiente'}</span></article>`;
+    const wave=waveformPath(item.bvp_waveform);
+    return `<article class="result-card"><div class="result-label">${icons('pulse')}${name}</div><div class="pulse-number">${item.heart_rate_bpm.toFixed(0)}</div><p class="pulse-unit">latidos/min</p>${wave?`<svg class="pulse-wave" viewBox="0 0 300 60" aria-label="Señal de pulso estimada"><path d="${wave}"/></svg>`:''}<span class="status-pill good">${icons('check')}Señal aceptada</span><p class="quality-score">${escape(qualityLabel(item))}</p></article>`;
   }).join('');
-  const difference = data.comparison?.difference_bpm;
-  $('#comparison-note').textContent = Number.isFinite(difference) ? `Diferencia: ${difference.toFixed(1)} latidos/min. La coincidencia entre métodos no demuestra precisión.` : 'La precisión de estas estimaciones aún está en evaluación.';
-  $('#technical-results').innerHTML = (data.results || []).map(item => {
-    const name = item.engine === 'open-rppg' ? 'Open-rppg' : 'Método original';
-    if (!accepted.includes(item)) return `<div class="detail-row"><strong>${name}</strong><span>${escape(rejection({results:[item]}).message)}</span></div>`;
-    const hrv = item.hrv || {};
-    return `<div class="detail-row"><strong>${name}</strong><span>${escape(item.model_used)}</span></div>` +
-      [['Pulso',item.heart_rate_bpm,'latidos/min'],['Variabilidad · RMSSD',hrv.rmssd_ms,'ms'],['Variabilidad · SDNN',hrv.sdnn_ms,'ms'],['Procesamiento',item.processing_seconds,'s']].filter(x => Number.isFinite(x[1])).map(([name,value,unit]) => `<div class="detail-row"><span>${name}</span><span>${value.toFixed(1)} ${unit}</span></div>`).join('') +
-      (item.warnings || []).map(text => `<p class="small">${escape(text)}</p>`).join('');
-  }).join('') + `<p class="small">La variabilidad del pulso de cámara no equivale a una medición mediante ECG.</p><pre>${escape(JSON.stringify({video:data.video,capture_quality:data.capture_quality,comparison:data.comparison},null,2))}</pre>`;
+  $('#metric-comparison').innerHTML=`<table><caption>Estimaciones por motor</caption><thead><tr><th scope="col">Métrica</th>${visible.map(x=>`<th scope="col">${escape(modelName(x))}</th>`).join('')}</tr></thead><tbody>${METRIC_ROWS.map(([name,unit,get])=>`<tr><th scope="row">${name}</th>${visible.map(item=>`<td>${escape(metricValue(item,get,unit))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  $('#metric-notes').innerHTML=`<span>La variabilidad es del pulso de cámara; no equivale a HRV de ECG.${Number.isFinite(seconds) && seconds<45?' En esta toma la ventana es corta.':''}</span>`+visible.map(item=>`<span><strong>${escape(modelName(item))}:</strong> ${escape(respirationNote(item))}</span>`).join('');
+  const difference=acceptedResults(data).length===2?data.comparison?.difference_bpm:null;
+  const referenceErrors=data.comparison?.reference_errors || [];
+  $('#comparison-note').textContent=Number.isFinite(difference)?`Diferencia de pulso: ${difference.toFixed(1)} latidos/min. La coincidencia entre motores no demuestra precisión.`:all.length===1?'Para comparar ambos, selecciona “Comparar ambos métodos” en el menú antes de la próxima captura.':'Solo un motor obtuvo una señal suficiente en esta toma.';
+  $('#technical-results').innerHTML=visible.map(item=>{
+    if(!acceptedResults({results:[item]}).length)return `<p class="small">${escape(modelName(item))}: ${escape(rejection({results:[item]}).message)}</p>`;
+    const beats=item.heartbeats || [];
+    const error=referenceErrors.find(x=>x.engine===item.engine)?.absolute_error_bpm;
+    return `<div class="detail-row"><strong>${escape(modelName(item))}</strong><span>${escape(item.model_used)}</span></div><p class="small">${escape(qualityLabel(item))}. SQI y SNR usan escalas distintas y no se promedian.</p>`+
+      (Number.isFinite(error)?`<p class="small">Error frente a tu referencia simultánea: ${error.toFixed(1)} latidos/min.</p>`:'')+
+      (item.warnings || []).map(text=>`<p class="small">${escape(text)}</p>`).join('')+
+      (beats.length?`<details class="beat-details"><summary>${beats.length} intervalos entre pulsos</summary><p class="small">Inicio y fin son picos de pulso consecutivos, relativos a la señal analizada.</p><div class="beat-scroll"><table><thead><tr><th>Inicio (s)</th><th>Fin (s)</th><th>Duración (ms)</th></tr></thead><tbody>${beats.map(x=>`<tr><td>${x.start_location_sec.toFixed(3)}</td><td>${x.end_location_sec.toFixed(3)}</td><td>${x.duration_ms.toFixed(1)}</td></tr>`).join('')}</tbody></table></div></details>`:'')+
+      `<pre>${escape(JSON.stringify({quality:item.quality,interval_quality:item.interval_quality,respiration:item.respiration,processing_seconds:item.processing_seconds},null,2))}</pre>`;
+  }).join('')+`<pre>${escape(JSON.stringify({video:data.video,capture_quality:data.capture_quality,variability_window:data.variability_window,comparison:data.comparison},null,2))}</pre>`;
   show('results');
 }
 function options() {
@@ -209,7 +226,7 @@ function startRecording() {
     $('.timer').setAttribute('aria-valuenow',Math.min(recordingDuration,Math.floor(elapsed)));
     $('#timer-ring').style.strokeDashoffset=320.443*(1-Math.min(elapsed/recordingDuration,1));
     if(!faceGuide)checkLight(performance.now());
-    if(elapsed>=recordingDuration+(STOP_SECONDS-TARGET_SECONDS) && activeRecorder.state==='recording'){$('#stop').disabled=true;activeRecorder.stop();}
+    if(elapsed>=recordingDuration+(recordingDuration===60?-.1:STOP_SECONDS-TARGET_SECONDS) && activeRecorder.state==='recording'){$('#stop').disabled=true;activeRecorder.stop();}
   },100);
 }
 async function startCamera() {
@@ -221,7 +238,7 @@ async function startCamera() {
   $('#record-timer').hidden=$('#stop').hidden=true;$('#face-guide').hidden=false;$('#cancel-guide').hidden=false;
   $('#light-status').className='status-pill';$('#light-status span').textContent='Comprobando luz…';
   guideFeedback.reset();guideState({stage:'front',step:0,reason:'waiting',progress:0});
-  recordingDuration=Number($('#capture-duration').value)===30?30:TARGET_SECONDS;
+  recordingDuration=[20,30,60].includes(Number($('#capture-duration').value))?Number($('#capture-duration').value):TARGET_SECONDS;
   $('#duration-label').textContent=` / ${recordingDuration} s`;$('#record-timer').setAttribute('aria-valuemax',recordingDuration);
   $('#face-status').hidden=true;$('.face-oval').classList.remove('attention');
   chunks=[];bytes=0;stoppedForSize=false;captureAborted=false;lightingSamples=0;recorder=null;
@@ -280,6 +297,13 @@ for(const button of document.querySelectorAll('[data-nav]')) button.addEventList
     if (args.result) renderResults(args.result); else toast('Todavía no tienes una captura. Pulsa Estoy listo para comenzar.');
   } else {releaseCamera();show('prepare');}
 });
+function captureMode(seconds) {
+  $('#capture-duration').value=String(seconds);
+  for(const button of document.querySelectorAll('[data-duration]'))button.setAttribute('aria-pressed',Number(button.dataset.duration)===seconds);
+  $('#capture-mode-note').textContent=seconds===60?'Más tiempo para explorar variabilidad y respiración. Estimaciones experimentales.':`Captura de ${seconds} segundos para estimar tu pulso.`;
+}
+for(const button of document.querySelectorAll('[data-duration]'))button.addEventListener('click',()=>captureMode(Number(button.dataset.duration)));
+$('#capture-duration').addEventListener('change',()=>captureMode(Number($('#capture-duration').value)));
 $('#selected').addEventListener('change',() => {$('#model-label').hidden=$('#selected').value==='open_rppg';});
 $('#use-reference').addEventListener('change',() => {$('#reference-label').hidden=!$('#use-reference').checked;});
 $('#upload').addEventListener('change', async () => {

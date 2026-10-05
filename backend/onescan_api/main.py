@@ -85,6 +85,9 @@ def analyze(path, selected, legacy_model, reference):
             outputs.append(output)
         return {"success": any(output["accepted"] for output in outputs), "source": "camera_video",
                 "video": asdict(info), "capture_quality": quality, "results": outputs,
+                "variability_window": {"duration_sec": info.duration_sec,
+                                       "status": "experimental_short_window" if info.duration_sec < 45 else "experimental",
+                                       "note": "Variabilidad de pulso de cámara (PRV); no equivale automáticamente a HRV de ECG."},
                 "comparison": comparison(outputs, reference),
                 "unavailable_metrics": ["blood_pressure", "spo2", "hba1c"],
                 "validation_status": "experimental_not_clinically_validated"}

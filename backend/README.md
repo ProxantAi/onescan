@@ -12,6 +12,50 @@ arterial, SpO₂ ni HbA1c. Los umbrales son operacionales, no validación clíni
 La variabilidad obtenida del pulso de cámara tampoco equivale automáticamente a
 HRV medida mediante ECG.
 
+## Métricas ampliadas y comparación — 5 octubre 2026
+
+La preparación permite elegir pulso (20 s) o ampliado (60 s); el menú conserva
+también 30 s. Ambos motores usan exactamente el mismo video. En resultados,
+«Comparar / FacePhys / EfficientPhys» cambia la vista localmente sin otra
+inferencia. Se muestran el modelo realmente utilizado (incluidos respaldos),
+RMSSD, SDNN, ln(RMSSD), pNN50 y los scores con sus unidades originales.
+`lnrmssd = ln(RMSSD_ms)` es adimensional y queda nulo para valores ausentes,
+no finitos, cero o negativos. Una ventana menor de 45 s se etiqueta como corta;
+esa etiqueta no establece validez clínica de ventanas más largas.
+
+Ambos motores añaden intervalos de pulso mediante HeartPy 1.2.7 sobre BVP completo
+y timestamps, antes de reducir la gráfica a 512 puntos. Inicio/fin corresponden
+a picos consecutivos, relativos a la primera muestra de señal analizada; no
+son marcas ECG ni los límites anatómicos de un latido. Se omiten pares
+rechazados y duraciones fuera de 60000/220–2000 ms; no se unen huecos. Para
+publicar intervalos se exigen al menos cinco, cobertura >= 80% y pulso por
+intervalos consistente con el estimado (diferencia <= max(5 bpm, 10%)).
+
+La respiración experimental usa el tramo continuo más largo de intervalos
+válidos: mínimo 30 intervalos y 45 s entre sus centros. Se interpolan a 4 Hz,
+se elimina tendencia lineal y se aplica un periodograma Hann en 0.1–0.4 Hz
+(6–24 resp/min). Se exige modulación >= 3 ms, concentración espectral >= 0.5
+en el pico y sus vecinos, y un pico fuera de los bordes de búsqueda. La respuesta
+incluye resolución espectral, duración útil, score y causa de indisponibilidad.
+Estos umbrales son operacionales y necesitan validación humana; interpolar
+no mejora la resolución real de la cámara. Un pulso aceptado puede tener
+respiración no disponible.
+
+La API original ahora entrega BVP completo filtrado cuando el adaptador solicita
+`include_full_bvp=true`; su respuesta habitual conserva la gráfica reducida.
+La opción y los lotes acotados de EfficientPhys se instalan con los scripts
+`deploy/patch_legacy_signal.py` y `deploy/patch_legacy_batches.py`. Los lotes
+respetan los grupos TSM y usan el siguiente cuadro real para la diferencia
+temporal; la estandarización sigue usando todo el video. Esto evita agotar
+memoria con 60 s. Ambos scripts verifican código conocido y crean backups.
+Si falta soporte de señal completa, se marca no disponible y nunca se procesa
+la gráfica reducida.
+SQI y SNR no se promedian ni se convierten en porcentajes de precisión.
+Un rechazo elimina también latidos, respiración y waveform de la respuesta.
+El JSON conserva procedencia, unidades, duración y comparación con referencia
+simultánea opcional. No se implementan estrés, actividad parasimpática, edad,
+IMC facial, BCG, presión arterial ni sus errores esperados.
+
 ## Instalación reproducible
 
 Python 3.10–3.13:
@@ -55,7 +99,7 @@ La detección corre en un worker del navegador, a un máximo de 8 cuadros por
 segundo durante la guía y 2 durante la grabación, sobre la misma región visible
 de la cámara. Los giros no se incluyen en la grabación. Se graban 20 segundos
 por defecto, con una pequeña reserva de 0.15 s para el último cuadro; el menú
-permite elegir 30 segundos. Puede detenerse antes, pero menos de 20 segundos no
+permite elegir 30 o 60 segundos. Puede detenerse antes, pero menos de 20 segundos no
 se analiza. Una ilustración con un giro leve y una flecha curva muestran la
 posición a imitar; ambas siguen la misma orientación de la vista en espejo.
 La flecha se dibuja dentro de la cámara, fuera de la transformación de espejo
@@ -142,7 +186,7 @@ para la procedencia y limitaciones de los modelos.
 `deploy/onescan-open-api.service` usa el entorno aislado del servidor y
 `/opt/onescan/current/backend`. El drop-in `deploy/rppg-ui-override.conf` cambia
 únicamente el punto de entrada de la UI y conserva sus variables OIDC originales.
-No modifica nginx, el backend original ni los servicios de Labs.
+No modifica nginx ni los servicios de Labs. Las extensiones opcionales del backend original se instalan por separado con los scripts de compatibilidad descritos arriba.
 
 Se guardan releases independientes en `/opt/onescan/releases/`. Antes de activar
 el drop-in se verifica `/health`, carga de pesos e inferencia de ambos motores.

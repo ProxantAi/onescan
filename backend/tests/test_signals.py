@@ -82,3 +82,37 @@ def test_open_model_starts_fresh_for_each_scan_and_converts_fraction():
         assert output["accepted"]
         assert output["hrv"]["pnn50_percent"] == 25
     assert seen == ["initial", "initial"]
+
+
+def test_legacy_intervals_use_opt_in_full_signal_and_its_sampling_rate(tmp_path, monkeypatch):
+    path = tmp_path / "video.mp4"
+    path.write_bytes(b"test")
+    values = {"heart_rate": {"bpm":72}, "signal_quality": {"snr_db":10},
+              "hrv": {"rmssd_ms":30}, "video": {"target_fps":30},
+              "bvp_waveform": [99, 99], "bvp_full": list(np.sin(np.arange(600)))}
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def post(self, *args, **kwargs):
+            assert kwargs["params"]["include_full_bvp"] is True
+            return types.SimpleNamespace(raise_for_status=lambda: None, json=lambda: values)
+    seen = []
+    def intervals(signal, times, hr):
+        seen.append((len(signal), times[-1], hr))
+        return engines.empty_metrics("test")
+    monkeypatch.setattr(engines.httpx, "Client", Client)
+    monkeypatch.setattr(engines, "analyze_intervals", intervals)
+    output = engines.analyze_legacy(path, "efficientphys")
+    assert seen == [(600, 599/30, 72)]
+    assert output["hrv"]["lnrmssd"] == 3.4012
+    values["bvp_full"] = None
+    engines.analyze_legacy(path, "efficientphys")
+    assert len(seen) == 1
+    values["bvp_full"] = [1,2,3]
+    values["signal_quality"]["snr_db"] = -1
+    output = engines.analyze_legacy(path, "efficientphys")
+    assert len(seen) == 1 and not output["heartbeats"] and not output["hrv"]
