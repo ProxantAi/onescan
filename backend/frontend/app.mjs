@@ -1,5 +1,6 @@
 import {TARGET_SECONDS, STOP_SECONDS, MIN_SECONDS, MAX_BYTES, acceptedResults, rejection, chooseMime, canAnalyzeCapture, waveformPath, diagnostics} from './core.mjs';
 import {METRIC_ROWS,modelName,metricValue,qualityLabel,respirationNote,resultViewItems} from './results.mjs';
+import {FaceRing} from './face-ring.mjs';
 import {CameraGuide} from './guide-camera.mjs';
 import {RecordingMonitor,turnDirection,GuideFeedback,GUIDE_STEPS} from './pose.mjs';
 const $ = selector => document.querySelector(selector);
@@ -15,6 +16,7 @@ let stoppedForSize = false, toastTimer, lightingSamples = 0, faceGuide = null, c
 const lightCanvas = document.createElement('canvas'); lightCanvas.width = lightCanvas.height = 48;
 const lightContext = lightCanvas.getContext('2d', {willReadFrequently:true});
 const guideFeedback=new GuideFeedback();
+const faceRing=new FaceRing($('.face-oval'));
 let resultView='compare';
 function frameHeight() {
   // Measure content, not the iframe's previous height (which prevents shrinking).
@@ -172,13 +174,15 @@ function guideState(state) {
   const hints={missing:'Coloca tu rostro dentro del óvalo',multiple:'Debe aparecer solo tu rostro',closer:'Acércate un poco',farther:'Aléjate un poco',center:'Centra tu rostro en el óvalo',level:'Mantén la cabeza a la altura de tus ojos',light:'Busca luz uniforme frente a ti',turn:state.stage==='steady'?'Mira al frente para comenzar':state.stage==='front'?'Mira a la cámara':'Sigue la flecha. Solo necesitas un giro pequeño',hold:state.stage==='steady'?'Mantente quieto. La captura comenzará sola':'Así está bien. Mantén un momento',ready:'Listo. Comenzamos la captura'};
   const displayStage=feedback.confirming?GUIDE_STEPS[feedback.completedStep]:state.stage;
   const direction=turnDirection(displayStage),side=Boolean(direction),example=$('#guide-example');
-  example.src=side?'guide-turn.svg':'advice-still.svg';example.classList.toggle('mirror',displayStage==='left');
+  const exampleAsset=side?'guide-avatar-turn.webp':'guide-avatar-front.webp';
+  if(example.getAttribute('src')!==exampleAsset)example.src=exampleAsset;
+  example.classList.toggle('mirror',direction==='left');
   example.alt=side?'Ejemplo del giro que debes imitar':'Ejemplo del rostro al frente';
   $('#guide-example-label').textContent=feedback.confirming?'Posición completada':side?'Un poco hacia este lado':'Mira al frente';
   const cue=$('#turn-cue');cue.hidden=!side || feedback.confirming;cue.classList.toggle('left',direction==='left');
   cue.setAttribute('aria-label',direction==='left'?'Gira hacia la izquierda de la pantalla':'Gira hacia la derecha de la pantalla');
   $('.face-oval').classList.toggle('detected',state.reason==='hold' || feedback.confirming);
-  $('#guide-ring').style.strokeDashoffset=100*(1-feedback.progress);
+  faceRing.update(feedback.progress);
   const notice=$('#guide-notice');notice.hidden=false;notice.classList.toggle('confirmed',feedback.confirming);
   $('#guide-check').hidden=!feedback.confirming;
   const noticeText=feedback.confirming?`${labels[feedback.completedStep]} listo`:state.reason==='hold'?'Mantén la posición':`Paso ${state.step+1} de 4 · ${labels[state.step]}`;
@@ -222,7 +226,7 @@ function startRecording() {
   $('#capture-title').textContent='Mantente quieto';
   $('#capture-hint').textContent='Mira al frente y evita hablar';
   $('.face-oval').classList.remove('detected');
-  $('#guide-ring').style.strokeDashoffset=100;
+  faceRing.update(0);
   const mime=chooseMime(MediaRecorder);
   recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:4_000_000});
   const activeRecorder=recorder,attempt=cameraAttempt;
