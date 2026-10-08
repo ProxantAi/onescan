@@ -16,8 +16,39 @@ const lightCanvas = document.createElement('canvas'); lightCanvas.width = lightC
 const lightContext = lightCanvas.getContext('2d', {willReadFrequently:true});
 const guideFeedback=new GuideFeedback();
 let resultView='compare';
-function frameHeight() { send('streamlit:setFrameHeight', {height:Math.ceil(document.documentElement.scrollHeight)}); }
-new ResizeObserver(frameHeight).observe(document.body);
+function frameHeight() {
+  // Measure content, not the iframe's previous height (which prevents shrinking).
+  const padding=getComputedStyle(document.body);
+  const height=Math.ceil($('.app-shell').getBoundingClientRect().height+parseFloat(padding.paddingTop)+parseFloat(padding.paddingBottom));
+  send('streamlit:setFrameHeight', {height});
+}
+new ResizeObserver(frameHeight).observe($('.app-shell'));
+window.addEventListener('resize',frameHeight);
+function dialogBounds() {
+  // A Streamlit iframe can be taller than the visible page. Keep dialogs in
+  // the visible slice, including when the parent page has been scrolled.
+  let top=0,height=window.innerHeight;
+  try {
+    if(window.frameElement) {
+      const box=window.frameElement.getBoundingClientRect();
+      const viewport=window.parent.visualViewport;
+      const start=viewport?.offsetTop || 0,end=start+(viewport?.height || window.parent.innerHeight);
+      top=Math.max(0,start-box.top);
+      height=Math.max(0,Math.min(window.innerHeight,end-box.top)-top);
+    }
+  } catch { /* Standalone/cross-origin previews use their own viewport. */ }
+  document.documentElement.style.setProperty('--dialog-top',`${top+16}px`);
+  document.documentElement.style.setProperty('--dialog-height',`${Math.max(0,height-32)}px`);
+}
+function openDialog(id) {dialogBounds();$('#'+id).showModal();}
+function refreshDialogBounds() {if(document.querySelector('dialog[open]'))dialogBounds();}
+window.addEventListener('resize',refreshDialogBounds);
+try {
+  window.parent.addEventListener('scroll',refreshDialogBounds,{passive:true});
+  window.parent.addEventListener('resize',refreshDialogBounds);
+  window.parent.visualViewport?.addEventListener('resize',refreshDialogBounds);
+  window.parent.visualViewport?.addEventListener('scroll',refreshDialogBounds);
+} catch { /* No access to a cross-origin host is required. */ }
 function show(next) {
   screen = next;
   for (const panel of screens) panel.hidden = panel.id !== next;
@@ -288,8 +319,8 @@ $('#cancel-guide').addEventListener('click',()=>{busy=false;reset();});
 $('#start').addEventListener('click',startCamera);
 $('#stop').addEventListener('click',() => {if(recorder?.state==='recording') {elapsed=(performance.now()-started)/1000;$('#stop').disabled=true;recorder.stop();}});
 for (const id of ['retry-start','new-capture']) $('#'+id).addEventListener('click',reset);
-for (const id of ['help-button','more-tips']) $('#'+id).addEventListener('click',() => {$('#help-dialog').showModal(); frameHeight();});
-$('#menu-button').addEventListener('click',() => {$('#menu-dialog').showModal();frameHeight();});
+for (const id of ['help-button','more-tips']) $('#'+id).addEventListener('click',() => {openDialog('help-dialog'); frameHeight();});
+$('#menu-button').addEventListener('click',() => {openDialog('menu-dialog');frameHeight();});
 for(const close of document.querySelectorAll('.close-dialog')) close.addEventListener('click',() => close.closest('dialog').close());
 for(const button of document.querySelectorAll('[data-nav]')) button.addEventListener('click',() => {
   if (busy) return;

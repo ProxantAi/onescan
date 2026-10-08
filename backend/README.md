@@ -143,6 +143,18 @@ La guía también requiere Web Workers, ImageBitmap y OffscreenCanvas.
 nueva ya no usa WebRTC ni reduce la grabación a 320 píxeles. Ambos motores siguen
 recibiendo el mismo video normalizado a un máximo de 640 píxeles.
 
+## Diseño responsivo
+
+La interfaz se adapta al ancho disponible, sin detectar Android/iOS: una columna
+hasta 767 px, guía y acciones en dos columnas desde 768 px y contenedor ampliado
+de hasta 1120 px desde 1200 px. La cámara conserva su proporción y las flechas
+permanecen sobre la vista sin espejo. En tablet/escritorio, los controles aparecen
+junto a la cámara; los resultados aprovechan el ancho para comparar motores.
+Se incluyen áreas seguras para iPhone, objetivos táctiles de 44 px y campos de
+16 px en menús. Los diálogos se limitan a la porción visible del iframe y permiten
+desplazamiento interno. La altura de Streamlit se mide sobre el contenido real,
+para que disminuya también al cambiar a una pantalla más corta.
+
 ## Pruebas
 
 ```bash

@@ -1,7 +1,7 @@
 # Resultado de implementación — 2026-09-30
 
 Implementación activa en https://selfie.proxant.ai/ mediante el release
-`/opt/onescan/releases/20261005-metrics-comparison-v1`.
+`/opt/onescan/releases/20261007-responsive-v1`.
 
 ## Verificado
 
@@ -253,3 +253,20 @@ Las extensiones del motor original se pueden revertir restaurando
 `api/main.py.before-onescan-full-signal` y
 `api/models/schemas.py.before-onescan-full-signal` a sus archivos originales
 y reiniciando `rppg-api`. Las dependencias y credenciales permanecen intactas.
+
+
+## Diseño responsivo — 7 octubre 2026
+
+Preparación, guía, grabación, procesamiento, reintento y resultados se verificaron
+en el navegador a 320×568, 375×667, 390×844, 430×932, 768×1024, 1024×768,
+1440×900 y 844×390: 48 combinaciones, sin desbordamiento horizontal ni controles
+fuera del ancho. Se comprobó el menú a 375×667 y 320×568: campos de 16 px,
+altura limitada a la parte visible de la página y desplazamiento interno cuando
+no cabe. La altura del iframe vuelve a disminuir después de pantallas largas.
+Las 22 pruebas JavaScript existentes siguen pasando.
+
+El harness local utiliza los archivos reales de la interfaz y datos/estados
+sintéticos para mostrar todas las pantallas sin grabar cámara ni analizar datos
+personales. Estas comprobaciones cubren distribución y navegación; no sustituyen
+pruebas de cámara en dispositivos físicos ni una ejecución en Safari/iOS real.
+No cambiaron los motores ni los controles de calidad del escaneo.

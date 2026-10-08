@@ -10,3 +10,103 @@
 .completed-badge{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);padding:7px 12px;max-width:calc(100% - 24px);white-space:nowrap;border-radius:10px;background:#f0fff5f2;color:#166c3d;font-size:13px;font-weight:750;box-shadow:0 2px 8px #0002;pointer-events:none}
 
 .segmented{display:flex;gap:4px;background:#eff4fc;border-radius:12px;padding:4px}.segmented button{flex:1;min-width:0;padding:11px 5px;border:0;border-radius:9px;color:#61738e;background:transparent;font-size:12px;font-weight:650;overflow-wrap:anywhere}.segmented button[aria-pressed=true]{background:var(--blue);color:white;box-shadow:0 2px 6px #154aca20}.capture-options{margin:16px 0}.capture-options p{font-size:12px;margin:8px 2px 12px}#result-cards.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#result-cards.pair .result-card{padding:13px 10px}.result-card .pulse-unit{margin:0;font-size:12px}.result-card .quality-score{font-size:10px;margin-top:9px}.pair .pulse-number{font-size:44px}.pair .status-pill{font-size:10px;padding:5px 6px}.pair .result-label{font-size:12px;overflow-wrap:anywhere}.pair .result-label svg{width:16px;height:16px}.rejected h2{margin:24px 0 10px}.rejected p{font-size:12px}.metric-comparison{border:1px solid var(--line);border-radius:14px;overflow:hidden}table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}caption{text-align:left;font-weight:700;padding:14px;background:#f7faff}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}thead th{color:#526887;font-weight:650;background:#f7faff}tbody th{font-weight:500}tbody tr:last-child>*{border-bottom:0}td{font-variant-numeric:tabular-nums}#metric-notes span{display:block;margin:9px 0}#metric-notes{font-size:11px}.beat-details{margin:14px 0}.beat-scroll{max-height:220px;overflow:auto}.beat-scroll thead{position:sticky;top:0}.beat-scroll table{font-size:11px}.beat-scroll th,.beat-scroll td{padding:8px 4px}@media(max-width:359px){.pair .pulse-number{font-size:38px}.pair .status-pill svg{display:none}.segmented button{font-size:11px}.metric-comparison table{font-size:11px}}
+
+
+/* Responsive layouts follow available space, independent of device/OS. */
+body{padding:24px clamp(12px,3vw,40px)}
+.app-shell{width:100%;max-width:560px;min-height:0}
+.screen{padding:18px clamp(20px,4vw,32px) 28px}
+.screen>*:last-child{margin-bottom:0}
+.prepare-layout,.prepare-action,.capture-layout,.capture-stage,.capture-controls,.retry-advice{min-width:0}
+.guide-card>div,.advice-card>div,.warning-card>div{min-width:0}
+h1,h2,p,.detail-row{overflow-wrap:break-word}
+.camera-view{height:auto;aspect-ratio:1.08}
+.tabbar{padding-bottom:max(8px,env(safe-area-inset-bottom,0px));gap:4px}
+.tab{min-width:0;flex:1;min-height:56px}
+.icon-button{width:44px;height:44px}
+.segmented button{min-height:44px}
+.text-button{min-height:44px}
+#retry-start{margin-top:17px}
+.processing-screen{min-height:480px}
+dialog{top:var(--dialog-top,16px);bottom:auto;margin-top:0;margin-bottom:0;max-height:var(--dialog-height,calc(100% - 32px));overflow-y:auto;overscroll-behavior:contain}
+dialog select,dialog input[type=number]{font-size:16px;min-width:0}
+.detail-row{flex-wrap:wrap}
+.detail-row>span{min-width:0}
+#toast{max-width:calc(100% - 32px)}
+@media(max-width:599px){
+  body{padding:0;background:white}
+  .app-shell{max-width:none;border:0;border-radius:0;box-shadow:none;min-height:0}
+  .appbar{padding: max(10px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));min-height:64px}
+  .screen{padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));padding-top:12px}
+  .camera-view{height:auto}
+  .app-shell>footer{padding-bottom:max(11px,env(safe-area-inset-bottom,0px))}
+}
+@media(min-width:768px){
+  .app-shell{max-width:1000px;border-radius:28px}
+  .appbar{padding:20px 32px 12px}
+  .wordmark{width:160px;height:51px}
+  .screen{padding:20px 32px 32px}
+  h1{font-size:32px;margin-top:28px}
+  h2{font-size:18px}
+  p{font-size:15px}
+  .steps{max-width:600px;margin:0 auto}
+  .prepare-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
+  .guidance-list{gap:16px}
+  .guide-card{min-height:110px;padding:18px;gap:16px}
+  .guide-card p{font-size:14px}
+  .camera-placeholder{height:210px;margin-top:0}
+  .person-guide{height:165px;width:200px}
+  .camera-placeholder span{font-size:12px;margin-bottom:12px}
+  .capture-options{margin-bottom:20px}
+  .capture-options p{font-size:13px}
+  .recording-screen h1{font-size:32px;margin-top:0}
+  .capture-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(250px,1fr);gap:32px;align-items:center;text-align:center}
+  .capture-controls{padding:12px 0}
+  .face-guide{margin-top:0;margin-bottom:24px}
+  .pose-example{gap:14px;margin-bottom:22px;font-size:15px}
+  .pose-example img{width:64px;height:64px}
+  .guide-progress span{padding:12px 4px;font-size:12px}
+  .timer{margin:0 auto 20px}
+  .capture-hint{font-size:14px;margin-bottom:20px}
+  .retry-advice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .advice-card{margin:0;min-height:160px;padding:20px 16px 20px 8px}
+  .advice-card h2{font-size:16px}
+  .advice-card p{font-size:14px}
+  .advice-card img{width:120px;height:110px}
+  .warning-card{padding:20px;margin-bottom:20px}
+  .warning-card h2{font-size:18px}
+  .warning-card p{font-size:14px}
+  .segmented{max-width:600px}
+  .segmented button{font-size:14px}
+  #result-cards.pair{gap:20px}
+  #result-cards.pair .result-card,.result-card{padding:24px}
+  .pair .pulse-number,.pulse-number{font-size:64px}
+  .pair .result-label,.result-label{font-size:15px}
+  .pair .status-pill{font-size:12px;padding:6px 12px}
+  .result-card .quality-score{font-size:12px}
+  .result-card .pulse-unit{font-size:14px}
+  .metric-comparison table{font-size:14px}
+  th,td{padding:14px 18px}
+  #metric-notes{font-size:13px}
+  .tabbar{padding:4px 32px 8px;margin-top:0}
+  .tab{flex-direction:row;gap:10px;font-size:14px;padding:10px;min-height:56px}
+  .tab-camera{width:36px;height:36px;margin:0;box-shadow:none}
+  .tab-camera svg{width:22px;height:22px}
+  .app-shell>footer{font-size:11px}
+  .processing-screen{min-height:480px}
+  .loading-orbit{margin-top:60px}
+}
+@media(min-width:1200px){
+  .app-shell{max-width:1120px}
+  .appbar{padding:24px 40px 16px}
+  .screen{padding-left:40px;padding-right:40px}
+  .prepare-layout,.capture-layout{gap:48px}
+  .camera-placeholder{height:230px}
+  .camera-view{max-width:520px;margin:0 auto}
+}
+@media(max-width:359px){
+  .screen{padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+  .steps{padding-left:16px;padding-right:16px}
+  h1{font-size:24px}
+  .pair .status-pill{white-space:normal}
+}
